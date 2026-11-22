@@ -1,0 +1,12 @@
+(()=>{const g=__game,c=g.colossus,p=g.player; g.input.locked=true; g.ignoreUnlock=true; const orig=g.tick.bind(g); const V=p.pos.constructor; const bot=window.bot={step:false,held:new Set(),prev:new Set(),target:null,sign:1,lastErr:null,ev:[],a:{k:0,mode:'mount',jumpT:0,strikeT:0}}; g.tick=(dt)=>{ if(bot.step) orig(dt); };
+const rr=g.renderer.render.bind(g.renderer); const fwd=new V(), w=new V();
+bot.frame=(render)=>{ if(g.state==='paused'){g.input.ui({type:'back'});} for(const k of bot.held){ if(!bot.prev.has(k)) g.input.pressedQueue.add(k); g.input.keys.add(k);} for(const k of bot.prev) if(!bot.held.has(k)) g.input.keys.delete(k); bot.prev=new Set(bot.held);
+ if(bot.target){ g.cam.camera.getWorldDirection(fwd); const dx=bot.target.x-p.pos.x, dz=bot.target.z-p.pos.z; const e=Math.atan2(fwd.x*dz-fwd.z*dx, fwd.x*dx+fwd.z*dz); if(bot.lastErr!==null && Math.abs(e)>Math.abs(bot.lastErr)+0.002 && Math.abs(e)>0.05) bot.sign*=-1; bot.lastErr=e; g.cam.yaw+=bot.sign*e*0.15; }
+ if(!render) g.renderer.render=()=>{}; bot.step=true; try{orig(1/60)}finally{bot.step=false; g.renderer.render=rr;} };
+bot.hold=(...k)=>k.forEach(x=>bot.held.add(x)); bot.up=(...k)=>k.forEach(x=>bot.held.delete(x));
+const NM=['hips','thighL','shinL','thighR','shinR','back','shoulders','armL','armR','crown','headBack']; bot.on=()=>p.state==='climb'&&p.att?NM[c.climbables.indexOf(p.att.obj)]:null;
+bot.L=()=>{const v=c.root.worldToLocal(p.pos.clone()); return [+v.x.toFixed(1),+v.y.toFixed(1),+v.z.toFixed(1)]};
+bot.info=()=>({L:bot.L(),ps:p.state,on:bot.on(),hp:Math.round(p.health.hp),st:Math.round(p.stamina),col:c.state,gs:g.state,mode:bot.a.mode,wp:c.weakPoints.map(x=>x.id+':'+x.hits+(x.destroyed?'X':'')).join(' '),pr:p.prompt&&p.prompt.label,t:+g.time.toFixed(0)});
+bot.run=(n,fn)=>{ for(let i=0;i<n;i++){ if(fn&&fn(i)===false) break; bot.frame(false);} bot.frame(true); return bot.info(); };
+bot.log=()=>{ const a=bot.a; const E=(m)=>bot.ev.push(a.k+' '+m+' y'+bot.L()[1]+' st'+Math.round(p.stamina)+' hp'+Math.round(p.health.hp)); const s={on:bot.on(),col:c.state,ps:p.state,mode:a.mode,wp:c.weakPoints.map(x=>x.hits+(x.destroyed?'X':'')).join()}; for(const k in s){ if(s[k]!==a['_'+k]){E(k+':'+s[k]); a['_'+k]=s[k];} } if(p.health.hp<(a._hp??999)-0.5)E('HIT'); a._hp=p.health.hp; bot.E=E; };
+return 'ok'})()

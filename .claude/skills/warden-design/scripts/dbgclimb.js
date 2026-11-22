@@ -1,0 +1,9 @@
+// Visual-inspection helpers for climbing / hit reactions (NOT a fair playtest: they place the player directly).
+// Needs dbgsrc.js + dbgshot.js. grabPatch(i) puts the player on boss climbable i (outer face); shakeShots(name,n) snaps a thrash.
+(()=>{const g=__game,p=g.player,V=p.pos.constructor; const boss=()=>g.boss||g.colossus;
+window.grabPatch=(i,lx=0.3,ly=-0.5)=>{ const c=boss(), obj=c.climbables[i], h=obj.userData.climb.half; const face=obj.userData.climb.face||'';
+  let local,nl; if(h.z<h.x&&h.z<h.y){ const ctr=c.root.getWorldPosition(new V()); ctr.y+=8; const a=obj.localToWorld(new V(0,0,h.z)),b=obj.localToWorld(new V(0,0,-h.z)); const sg=a.distanceTo(ctr)>b.distanceTo(ctr)?1:-1; local=new V(lx,ly,sg*h.z); nl=new V(0,0,sg);} else { local=new V(lx,h.y,ly); nl=new V(0,1,0); }
+  p.state='ground'; p.gripCooldown=0; p.attach({obj,local,normalLocal:nl,world:obj.localToWorld(local.clone())}); bot.hold('Mouse0'); bot.run(30); return p.state; };
+window.followShots=async(name,frames)=>{ g.cam.mode='follow'; const out=[]; for(let i=0;i<frames.length;i++){ bot.run(frames[i]); await snap(name+String.fromCharCode(97+i)); const c=boss(); out.push((c.state||'')+' s'+(c.shakeIntensity||0).toFixed(2)+' '+p.state+' st'+(p.stamina|0)); } return out; };
+window.sideShots=async(name,frames,ang=1.2,d=3.4)=>{ const out=[]; for(let i=0;i<frames.length;i++){ bot.run(frames[i]); const P=p.rig.vpos, N=p.climbNormal||new V(0,0,1); const side=new V(-N.z,0,N.x).normalize(); const cam=P.clone().addScaledVector(N,d*Math.cos(ang)).addScaledVector(side,d*Math.sin(ang)); cam.y+=0.6; view(cam.x,cam.y,cam.z,P.x,P.y+0.9,P.z); await snap(name+String.fromCharCode(97+i)); const c=boss(); out.push((c.state||'')+' s'+(c.shakeIntensity||0).toFixed(2)+' '+p.state+' st'+(p.stamina|0)); } g.cam.mode='follow'; return out; };
+return 'ok'})()

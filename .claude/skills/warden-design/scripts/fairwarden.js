@@ -1,0 +1,58 @@
+// Fair (input-only) player bot for the Warden. Needs dbgsrc.js + dbgai.js loaded first.
+// Reads only what a player can see (positions, the giant's pose/state, HUD prompt, own stamina bar).
+// Writes only keys (bot.hold/up) and camera yaw (bot.target / g.cam.yaw). Usage: await play(seconds)
+(()=>{const g=__game,c=g.colossus,p=g.player,V=p.pos.constructor; const back=c.weakPoints.find(w=>w.id==='back');
+const NM=['hips','thighL','shinL','thighR','shinR','back','shoulders','armL','armR','crown','headBack','belt','belt','haunchL','haunchR'];
+bot.on=()=>p.state==='climb'&&p.att?NM[c.climbables.indexOf(p.att.obj)]:null;
+const shakyNow=()=>c.state==='shakeWarn'||c.state==='shaking'||c.shakeIntensity>0.1;
+const base=bot.ai;
+bot.ai=()=>{ const a=bot.a, on=bot.on(), top=on&&p.climbNormal&&p.climbNormal.y>0.7, shaky=shakyNow();
+  // unstick on the ground: walked into a corner -> sidestep
+  const d=a.lp?Math.hypot(p.pos.x-a.lp.x,p.pos.z-a.lp.z):1; a.lp={x:p.pos.x,z:p.pos.z};
+  if(p.state==='ground'&&bot.held.has('KeyW')&&!(a.side&&a.k<a.side)){ a.stuck=d<0.02?(a.stuck||0)+1:0; if(a.stuck>20){a.side=a.k+40;a.stuck=0;} }
+  if(a.side&&a.k<a.side&&p.state==='ground'){ a.k++; bot.up('KeyW'); bot.hold('KeyA'); return; } else if(a.side){ bot.up('KeyA'); a.side=0; }
+  if(bot.held.has('KeyE')||p.strike.phase!=='none'){ base(); return; }
+  // stab whenever the prompt offers it
+  if(p.prompt?.label==='Strike'&&p.stamina>20&&!shaky&&p.state==='climb'){ a.k++; bot.log(); bot.up('KeyW','KeyA','KeyD','KeyS','Space'); bot.hold('Mouse0','KeyE'); a.strikeT=a.k; bot.E('strike'); return; }
+  // rest on any ledge below the shoulders until the stamina bar is full
+  if(top&&on!=='shoulders'&&on!=='crown'){
+    a.k++; bot.log(); bot.target=null; bot.up('Space','KeyA','KeyD','KeyS');
+    if(shaky){ bot.up('KeyW'); bot.hold('Mouse0'); return; }
+    if(p.stamina<97&&!a.leaving){ bot.up('KeyW','Mouse0'); return; }
+    // rested: try to climb on, first into the body, then out over the back edge (as a player would try both)
+    if(!a.leaving){ a.leaving=a.k; }
+    const into=((a.k-a.leaving)%160)<80, s=into?1:-1;
+    g.cam.yaw=Math.atan2(-Math.sin(c.yaw)*s,-Math.cos(c.yaw)*s); bot.hold('Mouse0','KeyW');
+    if(p.stamina<60) a.leaving=0; return;
+  }
+  a.leaving=0;
+  // pushing up under the overhanging fold of hide and getting nowhere: work sideways toward the gap down the spine
+  if(p.state==='climb'&&['thighL','thighR','haunchL','haunchR','hips'].includes(on)&&(a.mode==='up'||a.mode==='mount')&&!shaky){
+    const cur=p.lastAttWorld.clone(); a.cl=a.cl||{p:cur,n:0}; if(cur.distanceTo(a.cl.p)<0.01&&bot.held.has('KeyW')) a.cl.n++; else if(!a.slide) a.cl.n=0; a.cl.p=cur;
+    if(a.cl.n>25||a.slide){ a.slide=a.slide||40; a.slide--; a.k++; bot.log();
+      const hl=c.hips.worldToLocal(cur.clone()); const N=p.climbNormal.clone(), up=new V(0,1,0).addScaledVector(N,-N.y).normalize(), right=new V().crossVectors(N.clone().negate(),up).normalize();
+      const mid=c.hips.localToWorld(new V(0,hl.y,hl.z)); const dx=mid.sub(cur).dot(right);
+      bot.hold('Mouse0'); bot.up('KeyW','KeyS','KeyA','KeyD','Space'); if(Math.abs(dx)>0.3) bot.hold(dx>0?'KeyD':'KeyA'); else { a.slide=0; a.cl.n=0; }
+      if(a.slide<=0){ a.slide=0; a.cl.n=0; } return; }
+  }
+  // resting on the shoulders: once the bar is nearly full and it is not thrashing, head for the open mark
+  if(a.mode==='rest'&&on==='shoulders'&&p.stamina>=90&&!shaky){ const wp=c.weakPoints.find(x=>!x.destroyed&&!x.sealed); if(wp){ a.mode=wp.id==='back'?'dropBack':'toHead'; a.fell=false; } }
+  // on the back with the mark intact: work over to it
+  if(on==='back'&&!back.destroyed&&(a.mode==='up'||a.mode==='strike')){
+    a.k++; bot.log(); bot.hold('Mouse0'); bot.target=null; bot.up('Space','ShiftLeft','KeyW','KeyA','KeyD','KeyS'); if(shaky) return;
+    const w=back.mesh.getWorldPosition(new V()), N=p.climbNormal.clone(), up=new V(0,1,0).addScaledVector(N,-N.y).normalize(), right=new V().crossVectors(N.clone().negate(),up).normalize();
+    const dd=w.sub(p.pos.clone().add(new V(0,1.3,0))), dy=dd.dot(up), dx=dd.dot(right);
+    if(dy>0.3)bot.hold('KeyW'); else if(dy<-0.6)bot.hold('KeyS'); if(dx>0.4)bot.hold('KeyD'); else if(dx<-0.4)bot.hold('KeyA'); return;
+  }
+  base();
+};
+window.deaths=0; window.WL=window.WL||[];
+window.play=async(sec)=>{ const t0=g.time;
+  while(g.time-t0<sec){
+    if(g.state==='playing'){ bot.ai(); bot.frame(false); if(c.state==='dead'||c.state==='dying') { for(let i=0;i<30;i++) bot.frame(false); break; } continue; }
+    if(g.state==='dying'){ await new Promise(r=>setTimeout(r,200)); bot.frame(false); continue; }
+    if(g.state==='dead'){ deaths++; bot.held.clear(); await new Promise(r=>setTimeout(r,800)); g.input.ui({type:'confirm'}); await new Promise(r=>setTimeout(r,3000)); for(let i=0;i<60;i++) bot.frame(false); bot.a.mode='mount'; continue; }
+    await new Promise(r=>setTimeout(r,100)); bot.frame(false);
+  }
+  return {gs:g.state, col:c.state, info:bot.info(), deaths, WL:WL.slice(-14)}; };
+return 'ok'})()

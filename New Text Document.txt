@@ -1,0 +1,527 @@
+# COMPLETE GAME UI/UX DESIGN & IMPLEMENTATION
+## MONOLITH
+
+Design, develop, and implement a complete, polished UI/UX system for the entire 3D adventure game.
+
+Use the uploaded The Last of Us Part II main menu screenshot as the primary visual reference for the overall UI direction.
+
+Do not copy its exact design. Create an original identity that fits the mysterious ancient fantasy world of ECHOES OF THE COLOSSUS.
+
+The game is built with Three.js and runs in a web browser.
+
+---
+
+# 1. CORE VISUAL DIRECTION
+
+The entire UI must follow these principles:
+
+- Minimalist
+- Clean
+- Cinematic
+- Atmospheric
+- Elegant
+- Immersive
+- Premium game quality
+
+The UI should feel like a carefully crafted console-quality adventure game, not a generic web game or RPG interface.
+
+### Visual Style
+
+- Small, elegant typography.
+- Subtle letter spacing.
+- Warm white, faded gray, and muted earthy colors.
+- Transparent dark overlays only when necessary.
+- Minimal borders and decorative elements.
+- Subtle shadows and atmospheric transitions.
+- Smooth fade-in and fade-out animations.
+- Generous spacing and clean alignment.
+- Consistent typography and visual hierarchy.
+
+Avoid:
+- Bright and saturated UI colors.
+- Oversized text.
+- Excessive icons.
+- Thick borders.
+- Large opaque panels.
+- Futuristic sci-fi interfaces.
+- MMORPG-style HUD.
+- Unnecessary information on screen.
+- Generic dashboard designs.
+
+Use the environment and game artwork as part of the UI composition.
+
+The UI should never overpower the game world.
+
+---
+
+# 2. MAIN MENU
+
+Create a cinematic main menu inspired by the uploaded reference image.
+
+### Menu Options
+
+- Continue
+- New Game
+- Chapters
+- Load Game
+- Settings
+- Credits
+- Exit Game
+
+### Background
+
+Use a beautiful atmospheric scene from the game world.
+
+Possible elements:
+- Ancient ruined architecture.
+- Overgrown vegetation.
+- Moss-covered stone walls.
+- Forgotten statues.
+- Abandoned structures.
+- Soft sunlight and atmospheric fog.
+- A distant Colossus silhouette when appropriate.
+
+The background should feel alive but remain visually calm.
+
+### Menu Behavior
+
+- Menu text should be small and elegant.
+- Selected options should have subtle visual emphasis.
+- Smooth transitions between selections.
+- Fade transitions between screens.
+- Background atmosphere should continue moving subtly.
+- Avoid unnecessary animations.
+
+The main menu should feel quiet, mysterious, and emotionally powerful.
+
+---
+
+# 3. IN-GAME HUD
+
+The gameplay HUD must be extremely minimal.
+
+During normal exploration, display almost nothing.
+
+Only show UI elements when they are genuinely necessary.
+
+### Exploration
+
+- No permanent health bar.
+- No permanent stamina bar.
+- No minimap.
+- No compass unless absolutely necessary.
+- No quest tracker permanently occupying the screen.
+- No damage numbers.
+- No floating enemy indicators.
+- No unnecessary status icons.
+
+Allow the player to experience the environment without visual distractions.
+
+### Contextual Interaction
+
+When approaching an interactive object or location, display a small and elegant interaction prompt.
+
+Examples:
+- Interact
+- Examine
+- Climb
+- Grab
+- Release
+- Use
+
+Prompts should appear contextually and disappear when no longer relevant.
+
+Use subtle fade animations.
+
+---
+
+# 4. INVISIBLE HEALTH SYSTEM — NO HP BAR
+
+IMPORTANT:
+
+The game must NEVER display:
+- HP Bar.
+- Health Bar.
+- Health Numbers.
+- Health Percentage.
+- Damage Numbers.
+- Traditional RPG health indicators.
+
+There must be absolutely no visible health bar anywhere in the game.
+
+The player's physical condition must be communicated through visual effects, sound, and character animation.
+
+### Health and Damage Logic
+
+Create an internal health and damage system.
+
+The player receives damage from:
+- Colossus attacks.
+- Being thrown or crushed.
+- Falling from dangerous heights.
+- Environmental hazards.
+
+Damage accumulates when the player repeatedly receives damage within a short period.
+
+If the player continues receiving damage, their physical condition becomes progressively worse.
+
+If the player avoids damage for a certain period, recovery begins automatically.
+
+Recovery must be gradual and never instantaneous.
+
+If damage continues without recovery, the player can eventually die.
+
+### Visual Damage Feedback
+
+**Healthy**
+- Normal screen appearance.
+- Normal movement.
+- Normal breathing.
+
+**Injured**
+- Slightly desaturated screen.
+- Subtle dark vignette around the screen.
+- Heavier breathing.
+- Slight movement impairment.
+
+**Critical**
+- Stronger vignette.
+- Noticeable desaturation.
+- Subtle screen blur.
+- Heavy breathing.
+- Strong heartbeat.
+- Slower movement.
+- Reduced stamina recovery.
+
+**Near Death**
+- Darker screen edges.
+- More noticeable blur.
+- Muffled environmental audio.
+- Intense heartbeat.
+- Weak breathing.
+- Strong movement impairment.
+
+**Death**
+- Smooth cinematic fade to black.
+- Minimal death screen.
+- Restart from checkpoint option.
+- Return to main menu option.
+
+### Recovery
+
+When the player avoids damage:
+
+- Screen effects gradually disappear.
+- Breathing returns to normal.
+- Heartbeat slows down.
+- Movement gradually returns to normal.
+
+Do not show numerical recovery information.
+
+IMPORTANT: Do not use blood splashes, red screen overlays, or excessive gore as the primary damage feedback. Keep the presentation clean and atmospheric.
+
+---
+
+# 5. CLIMBING UI
+
+Climbing is one of the most important gameplay mechanics.
+
+Only display climbing information while the player is gripping or climbing a Colossus.
+
+### Climbing HUD
+
+- Small stamina indicator.
+- Minimal grip feedback.
+- Subtle warning when stamina is critically low.
+- Contextual climbing prompts.
+
+The stamina indicator should be thin, elegant, and unobtrusive.
+
+Do not display a large stamina bar.
+
+### Climbing Behavior
+
+- Stamina decreases while gripping and climbing.
+- Stamina recovers under appropriate conditions.
+- The Colossus can shake, move, and attempt to throw the player off.
+- UI feedback should communicate danger without interrupting gameplay.
+
+When the player is not climbing, hide the climbing UI completely.
+
+---
+
+# 6. COLOSSUS ENCOUNTER UI
+
+This is NOT a traditional combat game.
+
+There must be:
+- No boss HP bars.
+- No damage numbers.
+- No lock-on indicators.
+- No target markers.
+- No traditional combat interface.
+- No floating enemy health indicators.
+
+The Colossus should feel like a living puzzle rather than a normal enemy.
+
+Players must observe its behavior, discover its weaknesses, find ways to climb it, and reach its weak points.
+
+Communicate important gameplay information through:
+
+- Colossus animations.
+- Environmental reactions.
+- Sound design.
+- Camera behavior.
+- Visual storytelling.
+- Contextual interaction prompts.
+
+Avoid revealing puzzle solutions through excessive UI hints.
+
+---
+
+# 7. PAUSE MENU
+
+Create a minimal cinematic pause menu.
+
+Options:
+- Resume
+- Restart from Checkpoint
+- Settings
+- Return to Main Menu
+
+Use the same visual identity as the main menu.
+
+The background may remain visible with a subtle dark overlay.
+
+---
+
+# 8. SETTINGS MENU
+
+Create a complete settings interface.
+
+### Graphics
+- Resolution.
+- Display Mode.
+- Quality Presets.
+- Shadows.
+- Anti-Aliasing.
+- Post Processing.
+- VSync.
+- Frame Rate Limit.
+
+### Audio
+- Master Volume.
+- Music Volume.
+- Sound Effects Volume.
+- Ambient Volume.
+
+### Controls
+- Keyboard and Mouse.
+- Controller.
+- Key Remapping.
+- Mouse Sensitivity.
+- Camera Sensitivity.
+- Invert Camera.
+
+### Accessibility
+- UI Scale.
+- Subtitle Settings.
+- Subtitle Size.
+- Camera Shake.
+- Motion Blur.
+- Screen Effects Intensity.
+
+Keep all settings visually consistent and easy to navigate.
+
+---
+
+# 9. CHAPTER SELECT & SAVE SYSTEM
+
+Create clean and cinematic interfaces for:
+
+### Chapter Select
+- Chapter name.
+- Atmospheric background image.
+- Chapter progress.
+- Completed chapters.
+- Current chapter.
+
+### Load Game
+- Save slot.
+- Chapter name.
+- Playtime.
+- Last saved information.
+- Continue option.
+
+### Save Feedback
+Use subtle notifications when saving.
+
+Do not use large popups or intrusive messages.
+
+---
+
+# 10. LOADING SCREENS
+
+Create atmospheric loading screens.
+
+Use:
+- Beautiful environmental artwork.
+- Ancient ruins.
+- Colossus silhouettes.
+- Landscape illustrations.
+- Short lore fragments.
+- Minimal loading progress indicator.
+
+Use elegant transitions between loading and gameplay.
+
+---
+
+# 11. CREDITS SCREEN
+
+Create a cinematic scrolling credits screen.
+
+Use:
+- Minimal typography.
+- Slow scrolling.
+- Atmospheric background.
+- Subtle fade transitions.
+- Elegant spacing.
+
+---
+
+# 12. UI DESIGN SYSTEM
+
+Build a reusable UI design system for the entire game.
+
+Create reusable components for:
+- Main Menu.
+- Buttons.
+- Selection states.
+- Settings panels.
+- Pause Menu.
+- Interaction Prompts.
+- Climbing HUD.
+- Damage Feedback.
+- Death Screen.
+- Loading Screen.
+- Notifications.
+- Chapter Select.
+- Save Slots.
+
+Maintain consistent:
+- Typography.
+- Spacing.
+- Colors.
+- Animation timing.
+- Transitions.
+- Interaction behavior.
+
+All UI screens must feel like parts of the same game.
+
+---
+
+# 13. TECHNICAL REQUIREMENTS
+
+The game uses Three.js and runs in a browser.
+
+However, you are FREE TO USE ANY LIBRARIES, FRAMEWORKS, TOOLS, OR PACKAGES that improve the UI quality, performance, animation, interaction, or maintainability.
+
+Do not restrict yourself to the currently installed libraries.
+
+You may introduce additional libraries when they provide meaningful improvements.
+
+Choose appropriate tools for:
+- UI rendering.
+- Animation.
+- Transitions.
+- Post-processing.
+- Audio feedback.
+- Input handling.
+- Responsive layouts.
+
+Keep the UI architecture modular and maintainable.
+
+Separate UI logic from gameplay logic.
+
+Connect UI elements to actual gameplay states and events.
+
+Do not create decorative controls that do nothing.
+
+All buttons, menus, sliders, and settings must function correctly.
+
+Support:
+- Keyboard.
+- Mouse.
+- Controller.
+- Different screen sizes.
+- Different browser resolutions.
+
+Maintain good performance and avoid unnecessary rendering overhead.
+
+---
+
+# 14. TESTING & ITERATIVE POLISHING
+
+Do not stop after creating the first version.
+
+You must TEST, REVIEW, FIX, and IMPROVE the UI repeatedly until it reaches a polished and professional quality.
+
+Development process:
+
+1. Inspect the existing project and understand its architecture.
+2. Review the reference image.
+3. Design the complete UI visual system.
+4. Implement all required screens and components.
+5. Connect UI interactions to the actual game systems.
+6. Run the game in the browser.
+7. Test every screen and interaction.
+8. Check layout, typography, spacing, alignment, and responsiveness.
+9. Identify visual inconsistencies and bugs.
+10. Refine animations, transitions, and visual details.
+11. Repeat testing and improvements until the result is polished.
+
+Check specifically for:
+- Broken buttons.
+- Incorrect menu navigation.
+- UI overlapping.
+- Text clipping.
+- Poor alignment.
+- Inconsistent spacing.
+- Unreadable text.
+- Unnecessary HUD elements.
+- Performance problems.
+- Incorrect gameplay state synchronization.
+
+Do not claim that something works unless it has actually been tested.
+
+Do not stop at a basic prototype if further improvements are necessary.
+
+Preserve existing working gameplay systems while improving the UI.
+
+Avoid rewriting unrelated systems unnecessarily.
+
+---
+
+# 15. FINAL DESIGN GOAL
+
+The final UI should feel like a premium cinematic adventure game.
+
+The player should feel immersed in a mysterious, ancient world.
+
+The interface must be:
+- Beautiful.
+- Minimal.
+- Clean.
+- Atmospheric.
+- Functional.
+- Consistent.
+- Responsive.
+- Professionally polished.
+
+The environment and gameplay must always remain the main focus.
+
+The UI should communicate information only when necessary.
+
+**Design philosophy: Less UI, More Immersion.**
+
+Use the uploaded reference image as the primary visual inspiration throughout the entire UI design process.

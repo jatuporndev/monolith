@@ -1,0 +1,4 @@
+(()=>{const g=__game; const V=g.player.pos.constructor; bot.step=false;
+window.snap=async(name,w=960)=>{ bot.frame(true); const c=g.renderer.renderer.domElement; const k=w/c.width; const o=document.createElement('canvas'); o.width=w; o.height=Math.round(c.height*k); o.getContext('2d').drawImage(c,0,0,o.width,o.height); const d=o.toDataURL('image/jpeg',0.82); await fetch('http://127.0.0.1:5301/',{method:'POST',mode:'no-cors',body:name+'|'+d}); return name; };
+window.view=(px,py,pz,lx,ly,lz)=>{ g.cam.setCinematic(new V(px,py,pz), new V(lx,ly,lz), 1, true); g.world.followSun(new V(lx,0,lz)); bot.run(2); return 'ok'};
+return 'ok'})()
