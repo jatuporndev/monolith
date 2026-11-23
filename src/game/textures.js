@@ -281,6 +281,7 @@ export function barkTexture(seed = 27) {
  * Grey only: the red channel doubles as the height the skin shader bumps with.
  */
 export function hideTexture(kind = 'wrinkle', seed = 5) {
+  if (kind === 'weathered') return weatheredTexture(seed);
   const rnd = mulberry32(seed), scale = kind === 'scale', N = scale ? 12 : 9;
   const pts = []; for (let i = 0; i < N * N; i++) pts.push([rnd(), rnd(), rnd()]);
   const ss = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -301,6 +302,40 @@ export function hideTexture(kind = 'wrinkle', seed = 5) {
         ? 96 + ss(0, 0.16, e) * 78 + ny * 46 + tone * 26          // each scale: dark rim, lit lower lip
         : 104 + ss(0, 0.1, e) * 62 + ss(0.1, 0.6, e) * 16 + tone * 34;   // pads of skin between deep creases
       const i = (y * sz + x) * 4, gg = Math.max(0, Math.min(255, g + (rnd() - 0.5) * 10));
+      img.data[i] = gg; img.data[i + 1] = gg; img.data[i + 2] = gg; img.data[i + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+  });
+}
+
+/**
+ * Old weathered stone for the wardens' skin: broad slabs worn smooth, parted by thin hairline seams, the faces
+ * clouded by erosion and pocked with small pits. Low contrast — it reads as age, not as scales.
+ */
+function weatheredTexture(seed) {
+  const rnd = mulberry32(seed), N = 4, tn = makeTileNoise(seed + 7);
+  const pts = []; for (let i = 0; i < N * N; i++) pts.push([rnd(), rnd(), rnd()]);
+  const ss = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  return canvasTex(256, (ctx, sz) => {
+    const img = ctx.createImageData(sz, sz);
+    for (let y = 0; y < sz; y++) for (let x = 0; x < sz; x++) {
+      const uu = x / sz, vv = y / sz;
+      // the seams wander: warp the lookup by a little low noise
+      const wx = (tn.fbm(uu, vv, 4, 3, 1) - 0.5) * 0.5, wy = (tn.fbm(uu, vv, 4, 3, 2) - 0.5) * 0.5;
+      const u = uu * N + wx, v = vv * N + wy, ci = Math.floor(u), cj = Math.floor(v);
+      let f1 = 9, f2 = 9, tone = 0;
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+        const cx = ci + di, cy = cj + dj, q = pts[((cx % N) + N) % N + (((cy % N) + N) % N) * N];
+        const dx = cx + q[0] - u, dy = cy + q[1] - v, d = dx * dx + dy * dy;
+        if (d < f1) { f2 = f1; f1 = d; tone = q[2]; } else if (d < f2) f2 = d;
+      }
+      const e = Math.sqrt(f2) - Math.sqrt(f1);
+      const cloud = tn.fbm(uu, vv, 8, 4, 0), grit = tn.fbm(uu, vv, 32, 2, 3);
+      let g = 150 + tone * 18 + (cloud - 0.5) * 70 + (grit - 0.5) * 26;
+      g -= (1 - ss(0.0, 0.045, e)) * 52;                       // hairline seam between slabs
+      g += ss(0.045, 0.12, e) * 6 - ss(0.12, 0.6, e) * 4;     // worn, slightly rounded slab edge
+      if (grit < 0.3) g -= (0.3 - grit) * 90;                  // pits
+      const i = (y * sz + x) * 4, gg = Math.max(0, Math.min(255, g));
       img.data[i] = gg; img.data[i + 1] = gg; img.data[i + 2] = gg; img.data[i + 3] = 255;
     }
     ctx.putImageData(img, 0, 0);

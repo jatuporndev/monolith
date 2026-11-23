@@ -81,7 +81,16 @@ export class CameraRig {
     this.focus.x = damp(this.focus.x, tmp.x, 9, dt);
     this.focus.z = damp(this.focus.z, tmp.z, 9, dt);
     this.focus.y = damp(this.focus.y, tmp.y, player.state === 'air' ? 4 : 8, dt);
-    const fov = this.baseFov + 4 * smoothstep(5, 7.4, hs);
+    // scale: near a waking giant the lens opens, so its bulk runs off the edges of the frame; high on its body
+    // it opens too, and the ground falls away beneath
+    let wide = 0;
+    if (colossus && colossus.awakened && colossus.alive && colossus.focusPoint) {
+      colossus.focusPoint(tmp3);
+      if (player.state !== 'climb') wide = 7 * (1 - smoothstep(10, 42, Math.hypot(tmp3.x - player.pos.x, tmp3.z - player.pos.z)));
+      else if (player.onColossus) wide = 6 * smoothstep(4, 16, player.pos.y - this.world.heightAt(player.pos.x, player.pos.z));
+    }
+    this.wide = damp(this.wide || 0, wide, 1.2, dt);
+    const fov = this.baseFov + 4 * smoothstep(5, 7.4, hs) + this.wide;
     this.fov = damp(this.fov, fov, 3, dt);
     if (Math.abs(this.camera.fov - this.fov) > 0.02) { this.camera.fov = this.fov; this.camera.updateProjectionMatrix(); }
     this.place(dt);

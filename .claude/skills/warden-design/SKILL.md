@@ -89,15 +89,17 @@ States the game reads: `'shaking'` (release = thrown), `'dying'`, `'dead'`.
 
 | Warden | Chapter | Way in | Marks | Defence / twist |
 |---|---|---|---|---|
-| Warden (`colossus.js`) | III (id 2) | climb shin fur from the ground | back, then crown (sealed until back breaks) | stomps, swipes, shakes; back mark → walks to the basin wall and grinds the rider off its back (shoulders safe) → wall falls |
-| Strider (`strider.js`) | IV (id 3) | unseen, while it kneels to drink at the pool → breast mane (stones block its sight) | nape, then croup under a plate | charge/trample, kick, toss; ridden it bolts — steer from the front of the neck into stones, 2 aimed rams split the plate; nape → rider thrown, enraged double charges, winded after 3 → remount |
+| Warden (`colossus.js`) | III (id 2) | bait a stamp: the stamped foot sticks 3.2 s and only that shin's coat holds — jump the shockwave, take the leg | back, then crown (sealed until back breaks) | stomps, swipes, shakes; back mark → walks to the basin wall and grinds the rider off its back (shoulders safe) → wall falls |
+| Strider (`strider.js`) | IV (id 3) | unseen, while it kneels to drink at the pool → breast mane (stones block its sight; it lifts its head twice to look back — freeze) | nape, then croup under a plate | charge/trample, kick, toss; ridden it bolts — steer from the front of the neck into stones, 2 aimed rams split the plate; nape → rider thrown, enraged double charges, winded after 3 → remount |
 
 Marks can be `sealed` (not struck, dark, skipped by music). Boss-specific events used for Echo lines:
 `strider:spotted|mounted|plateCracked|armourBroken|winded`, `warden:sealed|rub|wallDown` (lines in
 `WARDENS[].lines.events`). Steering hook: player calls `boss.reins(att, mv)` while climbing.
 
-Still open: the Warden's way in is plain shin fur (only acceptable for the first warden — consider a
-stomp-into-rubble ramp).
+Shared fight framing (game.js, generic for any warden): first-sight camera sequence on `colossus:awaken`
+(uses `boss.head`), wide collapse shot on `colossus:dying` (uses `focusPoint`, slow-mo when `boss.fallen`
+turns true), aftermath with a "Rest" interactable by the body, grit shed from struck/broken marks.
+Look: skins use `hideTexture('weathered')`, muted palettes — old stone, not coloured scales.
 
 ## 7. Testing with the bot (Chrome, dev server on http://127.0.0.1:5199)
 

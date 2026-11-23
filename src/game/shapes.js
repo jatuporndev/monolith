@@ -54,14 +54,14 @@ export function blob(radius = 1, detail = 2, amp = 0.18, seed = 1, squash = 1) {
 }
 
 /** Alpha strand texture for shaggy fur cards. */
-export function strandTexture(seed = 4, hue = 40, lum = 18) {
+export function strandTexture(seed = 4, hue = 40, lum = 18, sat = 1) {
   const c = document.createElement('canvas'); c.width = 256; c.height = 256;
   const x = c.getContext('2d'); const rnd = mulberry32(seed);
   x.lineCap = 'round';
   for (let i = 0; i < 700; i++) {
     const sx = rnd() * 256, len = 120 + rnd() * 136, sway = (rnd() - 0.5) * 40;
     const l = lum + rnd() * 30;
-    x.strokeStyle = `hsla(${hue + rnd() * 20}, ${18 + rnd() * 18}%, ${l}%, ${0.75 + rnd() * 0.25})`;
+    x.strokeStyle = `hsla(${hue + rnd() * 20}, ${(18 + rnd() * 18) * sat}%, ${l}%, ${0.75 + rnd() * 0.25})`;
     x.lineWidth = 1.5 + rnd() * 3.5;
     x.beginPath(); x.moveTo(sx, 0); x.quadraticCurveTo(sx + sway * 0.3, len * 0.5, sx + sway, len); x.stroke();
   }

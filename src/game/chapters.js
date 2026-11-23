@@ -47,7 +47,9 @@ export const WARDENS = [
       awaken: 'It knows you are here.',
       sigil: { crown: 'The back mark is gone, and the crown has woken. Get to its shoulders.', back: 'One mark fades. The back still bears the other.' },
       victory: 'It remembers now. So will you.',
+      hint: ['Its legs will not hold you while they swing. Let it stamp — the foot sticks fast. Take that leg.', 'Stay close until it lifts a foot. Jump as it lands, then grab the back of that leg before it tears free.'],
       events: {
+        mounted: 'It cannot reach you there. Climb.',
         sealed: 'Its crown is sealed. Something else must break first.',
         rub: 'It means to grind you off against the wall. Up, to the shoulders!',
         wall: 'The wall is down. Nothing left to scrape you against.',
@@ -64,6 +66,7 @@ export const WARDENS = [
       events: {
         spotted: 'It has seen you. Put a stone between you, and it will lose you.',
         drinking: 'It is drinking. Go now. Walk, do not run.',
+        glance: 'It lifts its head. Be still, or keep a stone between you.',
         staggered: 'Stone will not bring it to its knees. Only thirst will. Wait for it at the water.',
         mounted: 'You have it. Hold on.',
         ram: 'Again. The plate on its back is splitting.',

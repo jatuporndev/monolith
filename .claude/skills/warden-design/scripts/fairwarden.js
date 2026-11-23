@@ -6,11 +6,34 @@ const NM=['hips','thighL','shinL','thighR','shinR','back','shoulders','armL','ar
 bot.on=()=>p.state==='climb'&&p.att?NM[c.climbables.indexOf(p.att.obj)]:null;
 const shakyNow=()=>c.state==='shakeWarn'||c.state==='shaking'||c.shakeIntensity>0.1;
 const base=bot.ai;
+// the way on (since the shins only hold on a stamped, stuck foot): stand where it will stamp at us, jump the
+// landing, then run to the back of the stuck leg and grab when the prompt shows. Reads only the visible leg pose.
+const steer=(x,z)=>{ bot.target=null; g.cam.yaw=Math.atan2(x-p.pos.x,z-p.pos.z)-Math.PI; };
+const mountW=()=>{ const a=bot.a; a.k++; bot.up('KeyE','KeyA','KeyD','KeyS');
+  const leg=c.stompLeg||c.legs[0], f=leg.foot.getWorldPosition(new V()), footUp=f.y-g.world.heightAt(f.x,f.z);
+  const root=c.root.position, dr=Math.hypot(p.pos.x-root.x,p.pos.z-root.z), vy=a.pf!=null?footUp-a.pf:0; a.pf=footUp;
+  if(a.k-(a.jumpT||0)>10) bot.up('Space');
+  if(c.state==='stomp'&&footUp>0.5){
+    const df=Math.hypot(p.pos.x-f.x,p.pos.z-f.z);
+    if(df<6.5){ steer(p.pos.x+(p.pos.x-f.x),p.pos.z+(p.pos.z-f.z)); bot.hold('KeyW','ShiftLeft'); } else bot.up('KeyW','ShiftLeft');
+    if(vy<-0.04&&footUp<3.2&&p.state==='ground'){ bot.hold('Space'); a.jumpT=a.k; WL.push((g.time|0)+' jump'); }
+    return; }
+  if(c.state==='stomp'){
+    const s=leg.shin.localToWorld(new V(0,-1.2,-1.5)); steer(s.x,s.z); bot.hold('KeyW','ShiftLeft');
+    if(p.prompt?.label==='Grab'){ bot.hold('Mouse0'); bot.up('ShiftLeft'); } else if(p.state==='ground') bot.up('Mouse0');
+    return; }
+  bot.up('Mouse0','ShiftLeft');
+  if(dr>11){ steer(root.x,root.z); bot.hold('KeyW'); if(dr>20) bot.hold('ShiftLeft'); }
+  else if(dr<8){ steer(p.pos.x+(p.pos.x-root.x),p.pos.z+(p.pos.z-root.z)); bot.hold('KeyW'); }
+  else { bot.up('KeyW'); steer(root.x,root.z); }
+};
 bot.ai=()=>{ const a=bot.a, on=bot.on(), top=on&&p.climbNormal&&p.climbNormal.y>0.7, shaky=shakyNow();
+  const mounting=!on&&p.state!=='climb'&&(!a.mode||a.mode==='mount')&&!(c.state==='dying'||c.state==='dead');
   // unstick on the ground: walked into a corner -> sidestep
   const d=a.lp?Math.hypot(p.pos.x-a.lp.x,p.pos.z-a.lp.z):1; a.lp={x:p.pos.x,z:p.pos.z};
   if(p.state==='ground'&&bot.held.has('KeyW')&&!(a.side&&a.k<a.side)){ a.stuck=d<0.02?(a.stuck||0)+1:0; if(a.stuck>20){a.side=a.k+40;a.stuck=0;} }
   if(a.side&&a.k<a.side&&p.state==='ground'){ a.k++; bot.up('KeyW'); bot.hold('KeyA'); return; } else if(a.side){ bot.up('KeyA'); a.side=0; }
+  if(mounting){ a.mode='mount'; mountW(); return; }
   if(bot.held.has('KeyE')||p.strike.phase!=='none'){ base(); return; }
   // stab whenever the prompt offers it
   if(p.prompt?.label==='Strike'&&p.stamina>20&&!shaky&&p.state==='climb'){ a.k++; bot.log(); bot.up('KeyW','KeyA','KeyD','KeyS','Space'); bot.hold('Mouse0','KeyE'); a.strikeT=a.k; bot.E('strike'); return; }

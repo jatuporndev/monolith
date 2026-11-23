@@ -203,3 +203,14 @@ Verification (2026-11-21, Chrome, scripted input): build OK, tests 10/10. Viewed
 - [x] Checked: no climb path passes inside a roll (point-in-ellipsoid count 0 over every route tried).
 - Fair bot taught to sidestep toward the gap when blocked under the overhang (what a player sees and does).
 - Fair playtests: Warden won, 1 death (fall during the wall grind), ~4 min; Strider won, 0 deaths, ~5 min.
+
+## 22. The weight of the fight, and older stone (2026-11-23)
+- User: "the fight is the whole game — what should change?" → all of it; and "the bosses look like coloured stone scales, too fantasy; less colour".
+- [x] Look: both wardens' skin is now `hideTexture('weathered')` — broad worn slabs, hairline seams, erosion clouds and pits, low bump, large scale — instead of fine scales/wrinkles. Palettes desaturated to grey-brown (Warden) and slate (Strider); fur ash-brown / ash-grey (`strandMaterial` takes `sat`). Eye glow and faint veins kept as the only colour.
+- [x] First sight: when a warden wakes the music drops out, the ground rumbles and a 5 s camera sequence (behind the wanderer, then from its feet looking up) plays; input is held (`input.frozen`). Only the first time per session; retries get just the sting. Then the music and Echo come in.
+- [x] Scale: the lens widens (up to +7° FOV) on the ground near a waking giant and high on its body; the wind swells with height on a giant (`audio.setWindBoost`).
+- [x] Weight of blows: every stab knocks grit and dust from the wound; a broken mark bursts and keeps shedding grit for the rest of the fight.
+- [x] The fall: when a warden dies the camera watches from the side, wide, until it lies still; time slows as the body hits the ground. Then control returns in silence; Echo speaks; the wanderer can walk up and **Rest** beside the body (or wait ~75 s) to begin the interlude. No damage during this time.
+- [x] Warden way in (was: walk up and grab the shin): the shin coat only holds on a foot **stamped and stuck** — after a stamp the foot stays driven in for 3.2 s while it heaves, then wrenches free. Stay close to bait a stamp, jump the shockwave, grab the back of that leg. Echo hints after 35/80 s; "mounted" ends them. Same for every remount.
+- [x] Strider: twice while it drinks it lifts its head and looks back over one shoulder (snort + twitch 0.9 s first). Moving in that arc is seen; standing still further than 6 m, or a stone between, is not. Echo: "Be still, or keep a stone between you."
+- Fair playtests (input-only bots, both updated to see only the leg pose / lifted head): Warden won, 0 deaths, ~3¼ min, 4 mount attempts. Strider won, 0 deaths, ~4¼ min, froze once during a glance. Collapse shot, aftermath and Rest → interlude → chapter IV checked. Build OK, tests 10/10.

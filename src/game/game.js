@@ -174,13 +174,16 @@ export class Game {
     });
     bus.on('player:gripLost', () => this.audio.play('uiError'));
     bus.on('colossus:awaken', () => {
-      this.audio.setMood('encounter');
       this.bossHint = { t: 0, stage: 0, solved: false, said: {} };
       for (const e of this.effigies.list) this.effigies.setMotes(e, false);   // the thread has done its work
-      const w = this.wardenInfo;
-      if (w) this.ui.hud.say([{ speaker: 'Echo', text: w.lines.awaken }]);
+      this.reveal();
     });
-    bus.on('colossus:sigilBroken', ({ remaining }) => {
+    // every blow knocks grit and dust from the wound; a broken mark goes on shedding for the rest of the fight
+    bus.on('colossus:struck', ({ id, power }) => {
+      const pos = this.wardPos(id); if (!pos) return;
+      this.impact.debris(pos, 0.45 + power * 0.35); this.impact.dust(pos, 0.25 + power * 0.15, { up: 0.6 });
+    });
+    bus.on('colossus:sigilBroken', ({ id, remaining }) => {
       const boss = this.boss, w = this.wardenInfo; if (!boss || !w) return;
       // a warden that rears when marked throws its rider: they fall, and cannot catch hold on the way down
       const p = this.player;
@@ -193,6 +196,8 @@ export class Game {
       }
       // the break itself: the world slows for a breath, the camera is struck, the light flares
       this.slowMo = 0.9; this.cam.punch(1.1, 0.7); this.cam.addTrauma(0.45); this.renderer.fx.flash = 1;
+      const wpos = this.wardPos(id);
+      if (wpos) { this.impact.debris(wpos, 2.4); this.impact.dust(wpos, 1.4, { up: 0.8 }); this.wounds.push({ id, t: 0 }); }
       this.input.rumble(1, 500);
       const left = boss.weakPoints.find((x) => !x.destroyed);
       if (left) this.ui.hud.say([{ speaker: 'Echo', text: w.lines.sigil[left.id] }], { interrupt: true });
@@ -208,17 +213,19 @@ export class Game {
     event('strider:spotted', 'spotted');
     event('strider:staggered', 'staggered');
     event('strider:drinking', 'drinking');
+    event('strider:glance', 'glance');
     event('strider:mounted', 'mounted', true);
     bus.on('strider:ram', ({ ridden }) => { if (ridden) { this.cam.addTrauma(0.6); this.input.rumble(1, 350); } });
     event('strider:plateCracked', 'ram');
     event('strider:armourBroken', 'armour', true, true);
     event('strider:winded', 'winded');
+    event('warden:mounted', 'mounted', true);
     event('warden:sealed', 'sealed');
     event('warden:rub', 'rub');
     event('warden:wallDown', 'wall');
     bus.on('warden:wallDown', () => { this.cam.addTrauma(0.8); this.input.rumble(1, 900); });
     bus.on('ui:input', (e) => { if (this.state === 'interlude' && (e.type === 'confirm' || e.type === 'back')) this.skipInterlude = true; });
-    bus.on('colossus:dying', () => { this.player.immune = 30; this.audio.setMood('silence'); });
+    bus.on('colossus:dying', () => { this.player.immune = 30; this.audio.setMood('silence'); this.collapseShot(); });
     bus.on('colossus:defeated', () => this.onVictory());
     bus.on('colossus:footfall', ({ pos, strength }) => {
       const d = pos.distanceTo(this.player.pos);
@@ -292,10 +299,14 @@ export class Game {
       if (boss) boss.update(sim, t, p, true);
       this.updateIdleBosses(sim, t, boss);
       this.hazards.update(sim, p, this.chapter === 1);
+      this.updateCine(dt, sim);
       this.cam.update(dt, look, p, boss);
       { const cm = this.cam.camera; cm.updateMatrixWorld(); const e = cm.matrixWorld.elements; this.audio.setListener(cm.position, { x: e[0], z: e[2] }); }
       if (boss && p.onColossus && boss.shakeIntensity > 0.2) { this.cam.rumble(0.25 + boss.shakeIntensity * 0.3); this.input.rumble(boss.shakeIntensity * 0.4, 100); }
-      this.updateMusic(boss, p);
+      if (!this.cine) this.updateMusic(boss, p);
+      this.updateWounds(dt, boss);
+      this.updateAltitude(p, boss);
+      this.updateAftermath(dt);
       this.updateContact(boss, p);
       this.checkProgress();
       this.climbHint(dt);
@@ -408,6 +419,7 @@ export class Game {
   interact(it) {
     if (it.kind === 'examine') { this.ui.hud.say(it.lines, { interrupt: true }); return; }
     if (it.kind === 'shrine') this.restAt(it, false);
+    if (it.kind === 'farewell') this.leaveAftermath();
   }
 
   restAt(it, passive) {
@@ -624,6 +636,10 @@ export class Game {
     const next = WARDENS.find((w) => w.chapter === id), prev = WARDENS.filter((w) => w.chapter < id).pop();
     if (next && prev) this.effigies.setMotes(this.effigies.get(prev.id), true, this.bosses[next.id].home.clone().setY(this.world.heightAt(this.bosses[next.id].home.x, this.bosses[next.id].home.z)));
     this.bossHint = null; this.endBoss = null;
+    // nothing carried over from a fight: no shedding wounds, no camera sequence, no rest by a fallen body
+    this.wounds = []; this.sawFall = false;
+    if (this.cine) { this.cine = null; this.input.frozen = false; }
+    if (this.aftermath) { const it = this.aftermath.it; this.world.interactables = this.world.interactables.filter((i) => i !== it); this.aftermath = null; }
   }
 
   /**
@@ -645,6 +661,133 @@ export class Game {
     this.audio.setIntensity(k);
   }
 
+  /** World position of a mark (by id) on the warden being fought. */
+  wardPos(id) {
+    const wp = this.boss?.weakPoints.find((w) => w.id === id); if (!wp) return null;
+    return wp.mesh.getWorldPosition(new THREE.Vector3());
+  }
+
+  // ---------------------------------------------------------------- in-play camera sequences
+  /**
+   * A short camera sequence run by the game loop itself (so pausing holds it and it plays at game speed).
+   * shots: [{ dur, pos(), look(), speed, snap, track, until() }] — pos is read once as the shot begins, look every
+   * frame when `track` is set. The wanderer stands still and the HUD is hidden while it runs.
+   */
+  runCine(shots, onEnd) {
+    if (this.cine) this.cine.onEnd = null;
+    this.cine = { shots, i: -1, t: 0, onEnd };
+    this.input.frozen = true; this.ui.hud.show(false);
+    this.nextShot();
+  }
+  nextShot() {
+    const c = this.cine; c.i++; c.t = 0;
+    const s = c.shots[c.i];
+    if (!s) { this.endCine(); return; }
+    this.cam.setCinematic(s.pos(), s.look(), s.speed ?? 1, !!s.snap);
+  }
+  updateCine(dt) {
+    const c = this.cine; if (!c) return;
+    c.t += dt; const s = c.shots[c.i];
+    if (s.track) this.cam.cine.look.copy(s.look());
+    if (c.t >= s.dur || (s.until && s.until())) this.nextShot();
+  }
+  endCine() {
+    const c = this.cine; this.cine = null;
+    this.input.frozen = false; this.ui.hud.show(true);
+    c?.onEnd?.();
+  }
+  /** Put the follow camera behind the wanderer, looking at a point (a little upward, so a giant fills the frame). */
+  faceToward(T, pitch = -0.08) {
+    const p = this.player;
+    this.cam.snapBehind(p.pos, Math.atan2(T.x - p.pos.x, T.z - p.pos.z) - Math.PI);
+    this.cam.pitch = pitch;
+  }
+  headOf(boss) { const v = new THREE.Vector3(); (boss.head || boss.root).getWorldPosition(v); return v; }
+
+  /**
+   * The first sight of a warden waking: the music drops out, the ground answers, and the camera looks up at it —
+   * once from behind the wanderer, once from its feet. On a retry only the sting plays.
+   */
+  reveal() {
+    const boss = this.boss, p = this.player, w = this.wardenInfo;
+    const say = () => { if (w) this.ui.hud.say([{ speaker: 'Echo', text: w.lines.awaken }]); };
+    this.audio.play('rumble'); this.cam.addTrauma(0.3); this.input.rumble(0.6, 600);
+    this.revealed ||= {};
+    if (!boss || this.revealed[this.chapter] || this.state !== 'playing' || p.state !== 'ground') { this.audio.setMood('encounter'); say(); return; }
+    this.revealed[this.chapter] = true;
+    this.audio.setMood('silence');
+    const top = () => this.headOf(boss);
+    // behind the wanderer, low, the giant far ahead
+    const behind = () => {
+      const P = p.pos, T = top(), d = new THREE.Vector3(T.x - P.x, 0, T.z - P.z).normalize(), s = new THREE.Vector3(d.z, 0, -d.x);
+      const v = P.clone().addScaledVector(d, -4.2).addScaledVector(s, 1.6); v.y = Math.max(P.y, this.world.heightAt(v.x, v.z)) + 0.8; return v;
+    };
+    // at its feet, looking up at the face
+    const below = (dist) => () => {
+      const B = boss.root.position, P = p.pos, d = new THREE.Vector3(P.x - B.x, 0, P.z - B.z).normalize(), s = new THREE.Vector3(d.z, 0, -d.x);
+      const v = B.clone().addScaledVector(d, dist).addScaledVector(s, dist * 0.35); v.y = this.world.heightAt(v.x, v.z) + 1.2; return v;
+    };
+    this.runCine([
+      { dur: 2.2, pos: behind, look: top, speed: 2.5, snap: true, track: true },
+      { dur: 0.01, pos: below(19), look: top, speed: 1, snap: true },
+      { dur: 2.6, pos: below(15), look: top, speed: 0.35, track: true },
+    ], () => { this.faceToward(top()); this.audio.setMood('encounter'); say(); });
+  }
+
+  /** A warden falls: watch it from the side, wide, until it lies still. */
+  collapseShot() {
+    const boss = this.boss, p = this.player; if (!boss || this.state !== 'playing') return;
+    const f = () => boss.focusPoint(new THREE.Vector3());
+    const side = (dist, up, ang) => () => {
+      const F = f(), dx = p.pos.x - F.x, dz = p.pos.z - F.z, a = Math.atan2(dx, dz) + ang;
+      const v = new THREE.Vector3(F.x + Math.sin(a) * dist, 0, F.z + Math.cos(a) * dist);
+      v.y = Math.max(this.world.heightAt(v.x, v.z) + up, F.y * 0.4); return v;
+    };
+    this.runCine([
+      { dur: 5, pos: side(26, 3, 0.55), look: f, speed: 1.5, snap: true, track: true },
+      { dur: 10, pos: side(34, 2, -0.35), look: f, speed: 0.3, snap: true, track: true, until: () => boss.state === 'dead' },
+    ], () => this.faceToward((this.endBoss || boss).focusPoint(new THREE.Vector3()), 0));
+  }
+
+  /** Grit trickles from every broken mark while the warden lives; the moment its body meets the ground, time slows. */
+  updateWounds(dt, boss) {
+    if (boss && boss.fallen && boss.state === 'dying' && !this.sawFall) { this.sawFall = true; this.slowMo = 1.2; this.input.rumble(1, 900); }
+    if (!boss || !boss.alive) return;
+    for (const w of this.wounds) {
+      w.t -= dt; if (w.t > 0) continue;
+      w.t = 0.3 + Math.random() * 0.35;
+      const pos = this.wardPos(w.id); if (!pos) continue;
+      this.impact.debris(pos, 0.08);
+      if (Math.random() < 0.3) this.impact.dust(pos, 0.12, { up: 0.4 });
+    }
+  }
+
+  /** High on a giant the wind is louder. */
+  updateAltitude(p) {
+    const h = p.onColossus ? Math.max(0, p.pos.y - this.world.heightAt(p.pos.x, p.pos.z)) : 0;
+    this.audio.setWindBoost?.(smoothstep(4, 18, h));
+  }
+
+  /**
+   * After the fall the valley is quiet and the wanderer is free to walk up to the body. Resting beside it (or
+   * waiting long enough) begins the interlude.
+   */
+  updateAftermath(dt) {
+    const a = this.aftermath; if (!a) return;
+    a.t += dt; this.player.immune = Math.max(this.player.immune, 0.5);
+    if (this.cine) return;
+    a.free = (a.free || 0) + dt;
+    if (!a.said && a.free > 1.5) { a.said = true; this.ui.hud.say([{ speaker: 'Echo', text: a.w.lines.victory }], { interrupt: true }); }
+    if (!a.hinted && a.free > 14) { a.hinted = true; this.ui.hud.say([{ speaker: '', text: 'Rest beside it when you are ready.' }]); }
+    if (a.free > 75) this.leaveAftermath();
+  }
+  leaveAftermath() {
+    const a = this.aftermath; if (!a) return;
+    this.aftermath = null;
+    this.world.interactables = this.world.interactables.filter((i) => i !== a.it);
+    this.interlude(a.w, WARDENS.find((x) => x.chapter === this.chapter + 1));
+  }
+
   /** Echo nudges a player who hasn't found how to bring the Strider down. */
   wardenHint(dt) {
     const h = this.bossHint, boss = this.boss, w = this.wardenInfo;
@@ -654,17 +797,17 @@ export class Game {
     else if (h.stage === 1 && h.t > 80) { h.stage = 2; this.ui.hud.say([{ speaker: '', text: w.lines.hint[1] }], { interrupt: true }); }
   }
 
-  async onVictory() {
+  /** It lies still. The wanderer gets the quiet back, and a place beside the body to rest when ready. */
+  onVictory() {
     const boss = this.boss, w = this.wardenInfo;
     this.endBoss = boss;
-    this.state = 'ending';
-    this.ui.hud.show(false);
     this.saves.complete(this.chapter);
     for (const e of this.effigies.list) this.effigies.setMotes(e, false);
-    await wait(2500);
-    this.ui.hud.say([{ speaker: 'Echo', text: w.lines.victory }], { interrupt: true });
-    await wait(4500);
-    await this.interlude(w, WARDENS.find((x) => x.chapter === this.chapter + 1));
+    this.wounds = [];
+    const F = boss.focusPoint(new THREE.Vector3()); F.y = this.world.heightAt(F.x, F.z) + 1;
+    const it = { id: 'farewell', kind: 'farewell', label: 'Rest', pos: F, radius: 12 };
+    this.world.interactables.push(it);
+    this.aftermath = { t: 0, w, it };
   }
 
   /** Wait that a skip (Confirm / Back) cuts short. */

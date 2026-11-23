@@ -33,6 +33,8 @@ bot.sai=()=>{ ai.k++; const k=ai.k, pt=PATCH(), shaky=S.shakeIntensity>0.25||S.s
     const ds=fromS();
     // its charge is coming: break sideways
     if(S.state==='charge'||(S.state==='paw'&&ds<30)){ const f=sfwd(); const rx=p.pos.x-S.root.position.x, rz=p.pos.z-S.root.position.z; const sd=Math.sign(rx*f.z-rz*f.x)||1; goTo(p.pos.x+f.z*sd*10, p.pos.z-f.x*sd*10, true); bot.up(K.grip); return; }
+    // it lifts its head from the water to look round: freeze where we stand until it drinks again
+    if(S.state==='drink'&&(S.cur.neck<0.05||Math.abs(S.neck.rotation.y)>0.12)){ if(!ai.froze){ai.froze=1;E('freeze');} allUp(); bot.up(K.grip); bot.target=null; return; } ai.froze=0;
     if(S.state==='winded'||(S.state==='drink'&&S.stage===1)){
       // walk in from the front, keeping clear of its flanks; grab the breast mane
       const c=chestPoint(), f=sfwd(), r=S.root.position;

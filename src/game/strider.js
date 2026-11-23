@@ -48,7 +48,7 @@ export class Strider {
     const horn = new THREE.MeshStandardMaterial({ color: 0xb8ad97, map: repeatTex(stoneTexture(73), 2), roughness: 0.75 });
     const hide = new THREE.MeshStandardMaterial({ color: 0x8b979b, roughness: 1 });
     const fu = this.furU = furUniforms();
-    const strands = strandMaterial(fu, { color: 0xe2e0d6, seed: 11, hue: 200, lum: 42 });
+    const strands = strandMaterial(fu, { color: 0xb8b6b0, seed: 11, hue: 40, lum: 38, sat: 0.3 });   // ash-grey, not ice-blue
     this.mats = { stone, plate, horn, hide, strands };
     this.furLag = new FurLag(fu);
     let seed = 300;
@@ -202,9 +202,10 @@ export class Strider {
       S.ell(hoof, [0, 0.42, 0], [0.52, 0.5, 0.58], { tag: DARK, k: 0.5 });                  // fetlock
       for (const t of [-1, 1]) S.ell(hoof, [t * 0.36, -0.05, 0.3], [0.42, 0.42, 0.92], { tag: HOOF, k: 0.12, rough: 0.3 });   // cloven hoof
     }
-    const mat = sculptMaterial({ grain: hideTexture('scale', 57), veins, scale: 0.62, bump: 1.0, emissive: 0xcfe6ff, emissiveIntensity: GLOW, roughness: 0.74, grainAmt: 0.42 });
-    const pal = [0x44626c, 0xdcd2b6, 0x25353c, 0x0a0c0e, 0xbfb79e, 0x191715, 0xc9bd9c, 0x7f898c].map((h) => new THREE.Color(h));
-    const bar = new THREE.Color(0x9fb3ae), back = new THREE.Color(0x1f2d33);
+    // worn slate: the same old weathered stone as the Warden, cooler and darker, the barring faded almost away
+    const mat = sculptMaterial({ grain: hideTexture('weathered', 57), veins, scale: 0.26, bump: 0.5, emissive: 0xcfe6ff, emissiveIntensity: GLOW, roughness: 0.92, grainAmt: 0.5 });
+    const pal = [0x5b6264, 0xaaa494, 0x363b3d, 0x0a0c0e, 0x8b887e, 0x1c1b19, 0xa09884, 0x6e6f6b].map((h) => new THREE.Color(h));
+    const bar = new THREE.Color(0x80878a), back = new THREE.Color(0x2d3336);
     const paint = (c, x, y, z, nY, tw) => {
       const hide = tw[HIDE];
       // a dark saddle along the spine, pale barring that breaks up on the flank and wraps the legs
@@ -230,6 +231,7 @@ export class Strider {
     this.state = mode; this.timer = 0; this.dyingT = 0; this.flinch = 0; this.shakeIntensity = 0; this.speed = 0;
     this.awakened = false; this.cooldown = 2; this.kickCd = 0; this.loosened = false; this.fallen = false; this.stumble = 0; this.hurt = 0;
     for (const wp of this.weakPoints) { wp.hits = 0; wp.destroyed = false; wp.flash = 0; wp.sealed = wp.id === 'croup'; }
+    this.glanceT = 0; this.glanceAt = null; this.glanceYaw = 0;
     this.stage = 1; this.charges = 0; this.thirst = 6; this.goal = null; this.hostile = false; this.lostT = 0; this.reinsT = 0; this.steer = 0; this.lastReins = -99;
     this.armourHits = 0; this.armour.visible = true; this.armour.rotation.z = 0; this.armour.position.y = 4.15;
     this.arena.restore?.();
@@ -395,7 +397,7 @@ export class Strider {
           const face = Math.atan2(pool.x - this.root.position.x, pool.z - this.root.position.z);
           this.turnToward(face, 0.6, dt);
           let r2 = face - this.yaw; r2 = Math.atan2(Math.sin(r2), Math.cos(r2));
-          if (Math.abs(r2) < 0.08) { this.state = 'drink'; this.timer = 24; this.snd('striderSnort'); this.bus.emit('strider:drinking'); }
+          if (Math.abs(r2) < 0.08) { this.state = 'drink'; this.timer = 24; this.glanceAt = [17.5, 10]; this.glanceT = 0; this.snd('striderSnort'); this.bus.emit('strider:drinking'); }
         }
         if (this.notices(pl, dist, rel, 24, 10)) this.becomeAlert();
         break;
@@ -405,6 +407,21 @@ export class Strider {
         this.timer -= dt;
         Object.assign(P, DRINK_POSE);
         P.neck += Math.sin(t * 1.7) * 0.03;
+        // twice while it drinks it lifts its dripping head and looks back over a shoulder — a snort and a twitch
+        // first. Whoever is moving in its sight then is seen; stand still, or keep a stone between you.
+        if (!this.glanceT && this.glanceAt?.length && this.timer < this.glanceAt[0]) {
+          this.glanceAt.shift(); this.glanceT = 1e-4; this.glanceSide = -(this.glanceSide || 1);
+          this.snd('striderSnort', { vol: 0.6 }); this.bus.emit('strider:glance');
+        }
+        if (this.glanceT) {
+          const gt = (this.glanceT += dt);
+          const up = smoothstep(0.9, 1.4, gt) * (1 - smoothstep(3.1, 3.7, gt));
+          if (gt < 0.9) { P.neck += Math.sin(gt * 22) * 0.05; P.head += Math.sin(gt * 17) * 0.06; }   // the tell: a twitch at the water
+          P.neck = lerp(P.neck, -0.35, up); P.by += up * 1.6; P.bp = lerp(P.bp, 0.05, up); P.head = lerp(P.head, 0.35, up);
+          this.glanceYaw = this.glanceSide * 0.8 * up;
+          if (up > 0.6 && this.sees(pl, dist, this.glanceSide)) { this.glanceT = 0; this.glanceYaw = 0; this.becomeAlert(); break; }
+          if (gt > 3.8) this.glanceT = 0;
+        }
         if (this.timer < 3 && !this.drinkWarned) { this.drinkWarned = true; this.snd('striderSnort'); }
         if (this.timer < 3) { P.neck -= (3 - this.timer) * 0.15; P.by += (3 - this.timer) * 0.2; }
         if (this.notices(pl, dist, rel, 0, 4.5)) { this.becomeAlert(); break; }
@@ -614,6 +631,16 @@ export class Strider {
     return dist < all * loud || (Math.abs(rel) < 1.25 && dist < front * loud);
   }
 
+  /** Looking back over one shoulder (side ±1) as it drinks: movement in that wide arc is seen; stillness further than a few strides off is not. */
+  sees(pl, dist, side) {
+    if (!pl || pl.state === 'dead' || pl.state === 'cinematic' || pl.state === 'climb') return false;
+    if (dist > 30 || this.hidden(pl)) return false;
+    if ((pl.anim?.speed || 0) < 0.5 && dist > 6) return false;
+    const a = Math.atan2(pl.pos.x - this.root.position.x, pl.pos.z - this.root.position.z);
+    let r = a - (this.yaw + side * 1.4); r = Math.atan2(Math.sin(r), Math.cos(r));
+    return Math.abs(r) < 1.0;
+  }
+
   /** A standing stone (not a shattered one) between its eyes and the player. */
   hidden(pl) {
     this.head.getWorldPosition(tmp2);
@@ -763,6 +790,7 @@ export class Strider {
     this.body.position.y -= 0.3 * hurt + 0.75 * st;
     this.body.rotation.x += -0.05 * hurt + 0.14 * st;
     this.head.rotation.x = C.head;
+    this.neck.rotation.y = damp(this.neck.rotation.y, this.state === 'drink' ? this.glanceYaw || 0 : 0, 4, dt);
     this.head.rotation.y = this.state === 'shaking' ? Math.sin(t * 7.3) * 0.25 : Math.sin(t * 0.37) * 0.08;
     // its own habit: a quick toss of the horns, like a beast shaking off flies
     { const ph = (t * 0.097) % 1; this.head.rotation.z = ph < 0.06 && sp < 3 ? Math.sin(ph / 0.06 * Math.PI * 3) * 0.2 * Math.sin(ph / 0.06 * Math.PI) : 0; }

@@ -117,7 +117,14 @@ export class AudioEngine {
   setWind(level) {
     if (!this.ctx) return;
     this.windLevel = level;
-    for (const w of this.wind) w.gain.gain.setTargetAtTime(w.base * level, this.ctx.currentTime, 1.5);
+    const k = level * (1 + (this.windBoost || 0) * 1.6);
+    for (const w of this.wind) w.gain.gain.setTargetAtTime(w.base * k, this.ctx.currentTime, 1.5);
+  }
+  /** 0..1: how exposed the listener is (high on a giant) — the wind swells on top of the mood's level. */
+  setWindBoost(b) {
+    if (Math.abs(b - (this.windBoost || 0)) < 0.05) return;
+    this.windBoost = b;
+    this.setWind(this.windLevel);
   }
 
   buildMusic() {

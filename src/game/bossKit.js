@@ -46,8 +46,8 @@ export class FurTouch {
  * Hanging locks: every lock hangs from its root, trails the body's motion, stirs in the wind and whips
  * when the warden thrashes; soft normals and ragged tips keep the cards from reading as planks.
  */
-export function strandMaterial(fu, { color = 0xc2b494, seed = 4, hue = 36, lum = 18 } = {}) {
-  const strands = new THREE.MeshStandardMaterial({ color, map: strandTexture(seed, hue, lum), alphaTest: 0.42, side: THREE.DoubleSide, roughness: 1 });
+export function strandMaterial(fu, { color = 0xc2b494, seed = 4, hue = 36, lum = 18, sat = 1 } = {}) {
+  const strands = new THREE.MeshStandardMaterial({ color, map: strandTexture(seed, hue, lum, sat), alphaTest: 0.42, side: THREE.DoubleSide, roughness: 1 });
   strands.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, fu);
     sh.vertexShader = 'attribute vec3 aFur;\nuniform float uTime, uShake; uniform vec3 uWind, uLag; uniform vec4 uTouch[10];\nvarying float vTip; varying float vLock; varying float vRoot; varying float vPress;\n' + sh.vertexShader

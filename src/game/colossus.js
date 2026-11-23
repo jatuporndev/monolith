@@ -9,6 +9,7 @@ const sndP = new THREE.Vector3();
 const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
 const UNSEEN = new THREE.MeshBasicMaterial({ visible: false });
 const GLOW = 0.1;   // how brightly the light under the hide shows through its creases
+const STOMP_HOLD = 3.2;   // seconds a stamped foot stays stuck in the ground — the window to take hold of that shin
 
 /**
  * The Warden — a walking ruin. No health bar, no markers: its state reads through
@@ -32,10 +33,10 @@ export class Colossus {
     const veins = veinTexture();
     const stone = new THREE.MeshStandardMaterial({ color: 0xb3ad9e, map: repeatTex(stoneTexture(23), 3), roughness: 0.93, emissive: 0xffe2b8, emissiveMap: veins, emissiveIntensity: 0.28 });
     const stoneDark = new THREE.MeshStandardMaterial({ color: 0x878175, map: repeatTex(stoneTexture(31), 3), roughness: 1, emissive: 0xffe2b8, emissiveMap: veins, emissiveIntensity: 0.18 });
-    const fur = new THREE.MeshStandardMaterial({ color: 0xc4a468, map: furTexture(), roughness: 1 });
+    const fur = new THREE.MeshStandardMaterial({ color: 0x8a8070, map: furTexture(), roughness: 1 });
     // living fur (shared rules in bossKit): locks hang from their roots, trail the body, stir and whip
     const fu = this.furU = furUniforms();
-    const strands = strandMaterial(fu, { color: 0xd9b56a, seed: 4, hue: 38 });
+    const strands = strandMaterial(fu, { color: 0xa39a8a, seed: 4, hue: 34, lum: 24, sat: 0.55 });   // dry, ash-brown, sun-bleached
     const moss = new THREE.MeshStandardMaterial({ color: 0x7d8f4c, map: mossTexture(9), roughness: 1 });
     const socket = new THREE.MeshBasicMaterial({ color: 0x15130f });
     this.mats = { stone, stoneDark, fur, strands, moss };
@@ -78,10 +79,11 @@ export class Colossus {
       const hip = new THREE.Group(); hip.position.set(side * 2.5, -0.8, 0); this.hips.add(hip);
       furPatch(2.3, 5.4, 1.3, hip, 0, -3.0, -1.95);
       const knee = new THREE.Group(); knee.position.y = -5.4; hip.add(knee);
-      furPatch(2.1, 4.9, 1.4, knee, 0, -2.0, -1.8);
+      // the coat on the shin lies flat and slick while the leg swings: it holds only on a foot planted hard and still
+      const shin = furPatch(2.1, 4.9, 1.4, knee, 0, -2.0, -1.8);
       const foot = new THREE.Object3D(); foot.position.set(0, -5.0, 0.6); knee.add(foot);   // where the sole meets the ground
       this.feet.push(foot);
-      return { hip, knee, foot, side };
+      return { hip, knee, foot, side, shin, planted: 0 };
     });
     this.torso = new THREE.Group(); this.torso.position.y = 1.5; this.hips.add(this.torso);
     this.backFur = furPatch(8.2, 9.2, 0.7, this.torso, 0, 4.4, -3.05, 0, [{ x: 0, y: 2.4, r: 1.5 }]);
@@ -272,17 +274,18 @@ export class Colossus {
       S.cone(J, [s * 1.0, -0.25, 2.25], [s * 1.28, 0.85, 2.72], 0.34, 0.25, { tag: BONE, k: 0.14, rough: 0.4 });
       S.cone(J, [s * 1.28, 0.85, 2.72], [s * 1.16, 1.65, 2.86], 0.25, 0.1, { tag: BONE, k: 0.1, rough: 0.4 });
     }
-    const mat = sculptMaterial({ grain: hideTexture('wrinkle', 23), veins, scale: 0.7, bump: 1.0, emissive: 0xffd9a0, emissiveIntensity: GLOW, roughness: 0.86, grainAmt: 0.45 });
-    const pal = [0x6f5540, 0x46362a, 0x71863f, 0x0c0907, 0xd9cfb2, 0xa18a6e, 0xc39a86, 0x7a5c2c].map((h) => new THREE.Color(h));
-    const dust = new THREE.Color(0x9b8d74), dark = new THREE.Color(0x3a2c22);
+    // old weathered stone: broad worn slabs, hairline seams, muted grey-brown — age, not scales
+    const mat = sculptMaterial({ grain: hideTexture('weathered', 23), veins, scale: 0.21, bump: 0.55, emissive: 0xffd9a0, emissiveIntensity: GLOW, roughness: 0.95, grainAmt: 0.55 });
+    const pal = [0x837b6e, 0x5c564c, 0x5f6a4a, 0x0c0b0a, 0xa29a88, 0x8f877a, 0x968c7e, 0x6a6254].map((h) => new THREE.Color(h));
+    const dust = new THREE.Color(0x938b7a), dark = new THREE.Color(0x4a453e);
     const paint = (c, x, y, z, nY, tw) => {
       const skin = tw[HIDE] + tw[DARK] + tw[PALE];
       // old skin is never one colour: liver-dark blotches, and the dust of the basin up to the knees
       const blotch = pnoise(x * 0.22 + 3, y * 0.22, z * 0.22) * 0.5 + pnoise(x * 0.7, y * 0.7 + 9, z * 0.7) * 0.25;
-      if (blotch > 0.08) c.lerp(dark, Math.min(0.5, (blotch - 0.08) * 1.6) * skin);
+      if (blotch > 0.08) c.lerp(dark, Math.min(0.35, (blotch - 0.08) * 1.2) * skin);
       c.lerp(dust, Math.max(0, 1 - y / 6) * 0.45 * skin);
     };
-    this.skin = S.build({ voxel: 0.22, detail: { freq: 0.5, amp: 0.06, crack: 0.14 }, palette: pal, stain: 0.3, paint, moss: { color: new THREE.Color(0x6f8440), amount: 0.55 }, material: mat });
+    this.skin = S.build({ voxel: 0.22, detail: { freq: 0.5, amp: 0.06, crack: 0.14 }, palette: pal, stain: 0.3, paint, moss: { color: new THREE.Color(0x5f6a48), amount: 0.45 }, material: mat });
     this.sculptStats = S.stats;
     this.mats.stone = mat; this.mats.stoneDark = { emissiveIntensity: 0 };
     // blunt lower teeth between the tusks (too fine for the sculpt grid)
@@ -319,7 +322,8 @@ export class Colossus {
     this.root.visible = true; this.root.rotation.set(0, 0, 0); this.hips.rotation.set(0, 0, 0); this.hips.position.y = 11.2;
     // the crown stays sealed until the back mark breaks
     for (const wp of this.weakPoints) { wp.hits = 0; wp.destroyed = false; wp.flash = 0; wp.sealed = wp.id === 'crown'; }
-    this.rubPhase = null; this.sealedSaid = false; this.grindHits = 0;
+    this.rubPhase = null; this.sealedSaid = false; this.grindHits = 0; this.mountSaid = false;
+    for (const leg of this.legs) leg.planted = 0;
     this.world.basinWall?.restore();
     for (const c of this.climbables) c.userData.climb.disabled = false;
     this.eyeMat.opacity = 0.85; this.eyeGlow.intensity = 6; this.mats.stone.emissiveIntensity = GLOW; this.mats.stoneDark.emissiveIntensity = 0.18;
@@ -451,6 +455,16 @@ export class Colossus {
       // a climber who reaches the sealed crown is told why it will not take the blade
       if (wp.sealed && climbing && !this.sealedSaid && near > 0.85) { this.sealedSaid = true; this.bus.emit('warden:sealed'); }
     }
+
+    // the way on: a shin can be taken only while its foot is planted after a stamp (or by whoever already holds it)
+    if (this.state !== 'dead' && !this.loosened) {
+      for (const leg of this.legs) {
+        leg.planted = Math.max(0, leg.planted - dt);
+        const holding = climbing && pl.att?.obj === leg.shin;
+        leg.shin.userData.climb.disabled = !(holding || leg.planted > 0);
+      }
+    }
+    if (climbing && !this.mountSaid) { this.mountSaid = true; this.bus.emit('warden:mounted'); }
 
     switch (this.state) {
       case 'dormant': {
@@ -715,9 +729,14 @@ export class Colossus {
   updateStomp(dt, pl) {
     this.timer += dt;
     const leg = this.stompLeg, other = this.legs.find((l) => l !== leg);
-    const lift = 1.6, slam = 0.22, rec = 1.4;
+    const lift = 1.6, slam = 0.22, hold = STOMP_HOLD, rec = 1.4;
     const tt = this.timer;
     let hipX = 0, knee = 0;
+    if (tt > lift + slam + hold && !this.pulled) {
+      // it wrenches the foot free: stones crack out of the hole it leaves
+      this.pulled = true; this.snd('giantLift'); this.snd('giantCreak', { vol: 1.2 });
+      leg.foot.getWorldPosition(tmp2); this.bus.emit('colossus:footfall', { pos: tmp2.clone(), strength: 0.7 });
+    }
     if (tt < lift) {
       // anticipation: raise leg, track the player
       const k = smoothstep(0, lift, tt);
@@ -728,17 +747,23 @@ export class Colossus {
     } else if (tt < lift + slam) {
       const k = (tt - lift) / slam; hipX = lerp(-0.95, 0.1, k * k); knee = lerp(1.2, 0, k * k);
       this.torso.rotation.x = lerp(-0.1, 0.36, k * k); this.armSpread = 1 - k;            // and throws its weight down after the foot
+    } else if (tt < lift + slam + hold) {
+      // driven in to the ankle: the foot is stuck fast and the leg stands still while it heaves to free it
+      if (!this.slammed) { this.slam(leg, pl); this.pulled = false; leg.planted = hold; }
+      const strain = Math.sin((tt - lift - slam) * 5.5) * 0.5 + 0.5;
+      hipX = 0.1; this.torso.rotation.x = 0.36 - strain * 0.06; this.armSpread = 0.25 * strain;
+      if (Math.random() < dt * 3) { leg.foot.getWorldPosition(tmp2); this.bus.emit('colossus:footfall', { pos: tmp2.clone(), strength: 0.15 }); }
     } else {
-      if (!this.slammed) this.slam(leg, pl);
-      const k = smoothstep(lift + slam, lift + slam + rec, tt);
+      const k = smoothstep(lift + slam + hold, lift + slam + hold + rec, tt);
       hipX = lerp(0.1, 0, k);
       this.torso.rotation.x = lerp(0.36, 0.12, k); this.armSpread = 0;                    // hauls itself upright again
-      if (tt > lift + slam + rec) { this.slammed = false; this.state = 'hunt'; this.timer = 3.5 + Math.random() * 2; }
+      if (tt > lift + slam + hold + rec) { this.slammed = false; this.state = 'hunt'; this.timer = 3.5 + Math.random() * 2; }
     }
     leg.hip.rotation.x = hipX; leg.knee.rotation.x = knee;
     other.hip.rotation.x = damp(other.hip.rotation.x, 0.15, 3, dt);
     other.knee.rotation.x = damp(other.knee.rotation.x, 0.2, 3, dt);
-    this.hips.position.y = 11.2 - 0.3 * (knee / 1.2) - (tt > lift + slam ? 0.9 * Math.sin(Math.PI * Math.min(1, (tt - lift - slam) / rec)) : 0);   // sinks into the blow
+    const sink = tt <= lift + slam ? 0 : tt < lift + slam + hold ? 0.9 : 0.9 * (1 - smoothstep(lift + slam + hold, lift + slam + hold + rec, tt));
+    this.hips.position.y = 11.2 - 0.3 * (knee / 1.2) - sink;   // sinks into the blow, and stays down while the foot is stuck
   }
 
   slam(leg, pl) {

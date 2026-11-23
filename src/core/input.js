@@ -175,20 +175,20 @@ export class Input {
 
   // ---- gameplay queries -------------------------------------------------
   held(action) {
-    if (this.mode !== 'game') return false;
+    if (this.mode !== 'game' || this.frozen) return false;
     const code = this.settings.get('bindings')[action];
     if (code && this.keys.has(code)) return true;
     const ids = PAD_ACTIONS[action];
     return !!(ids && this.pad && ids.some((i) => this.pad.buttons[i]?.pressed || this.pad.buttons[i]?.value > 0.5));
   }
   wasPressed(action) {
-    if (this.mode !== 'game') return false;
+    if (this.mode !== 'game' || this.frozen) return false;
     const code = this.settings.get('bindings')[action];
     return !!((code && this.pressed.has(code)) || this.pressed.has('pad:' + action));
   }
   /** Movement vector in [-1,1]² (x right, y forward). */
   move() {
-    if (this.mode !== 'game') return { x: 0, y: 0 };
+    if (this.mode !== 'game' || this.frozen) return { x: 0, y: 0 };
     const b = this.settings.get('bindings');
     let x = (this.keys.has(b.right) ? 1 : 0) - (this.keys.has(b.left) ? 1 : 0);
     let y = (this.keys.has(b.forward) ? 1 : 0) - (this.keys.has(b.back) ? 1 : 0);
@@ -200,7 +200,7 @@ export class Input {
   /** Camera look delta (radians) for this frame. */
   look(dt) {
     const [dx, dy] = this.consumeMouse();
-    if (this.mode !== 'game') return { yaw: 0, pitch: 0 };
+    if (this.mode !== 'game' || this.frozen) return { yaw: 0, pitch: 0 };
     const ms = 0.0006 + (this.settings.get('mouseSensitivity') / 100) * 0.0045;
     let yaw = -dx * ms, pitch = -dy * ms;
     if (this.padAxes) {
