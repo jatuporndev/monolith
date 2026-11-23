@@ -254,6 +254,9 @@ export class World {
     let g = geo.index ? geo.toNonIndexed() : geo;
     g.deleteAttribute('uv'); g.deleteAttribute('color');
     g.applyMatrix4(matrix);
+    if (this._capture) {                                  // stone that must come and go stays its own mesh
+      const m = new THREE.Mesh(g, mat); m.castShadow = shadow; m.receiveShadow = true; this._capture.add(m); return;
+    }
     const z = matrix.elements[14], zone = z > 120 ? 0 : z > 0 ? 1 : 2;
     const key = mat.uuid + (shadow ? 's' : 'n') + zone;
     let b = this.batches.get(key);
@@ -394,7 +397,7 @@ export class World {
       for (let z = 132; z < 200; z += 8.4) {
         const h = 7.5 + this.rnd() * 3 - (z > 180 ? 2 : 0);
         const mat = this.rnd() < 0.5 ? S : D;
-        if (sx < 0 && Math.abs(z + 4 - MEADOW.breachZ) < 1) { this.breach(sx * 32, z + 4, h, mat); continue; }
+        if (sx < 0 && Math.abs(z + 4 - MEADOW.breachZ) < 1) { this.breachSection(sx * 32, z + 4, h, mat); continue; }
         this.block(sx * 32, -0.5, z + 4, 3, h, 8.6, { mat });
       }
     }
@@ -526,6 +529,33 @@ export class World {
       this.animated.push((dt, t) => { m2.position.x = Math.sin(t * 0.03 + i) * 20; });
     }
     this.shrine(0, 15, 'shrine2', 2);
+  }
+
+  /**
+   * The stretch of west wall that opens onto the meadow: whole until the first warden falls, then breached.
+   * Both versions are built once as their own groups (not merged), with their own colliders, and swapped.
+   */
+  breachSection(x, zc, h, mat) {
+    const build = (fn) => {
+      const g = new THREE.Group(), n0 = this.colliders.length;
+      this._capture = g; fn(); this._capture = null;
+      this.scene.add(g);
+      return { g, cols: this.colliders.splice(n0) };
+    };
+    // the whole wall is chiselled from its own seed, so it doesn't shift the decoration stream after it
+    const whole = build(() => {
+      const pos = new THREE.Vector3(x, -0.5 + h / 2, zc);
+      this.addStatic(chiseledBox(3, h, 8.6, { radius: 0.18, seg: 2, amp: 0.07, freq: 0.8, seed: 77 }), mat, _m4.compose(pos, _q.identity(), _one));
+      this.addCollider(pos, new THREE.Vector3(1.5, h / 2, 4.3));
+    });
+    const broken = build(() => this.breach(x, zc, h, mat));
+    const show = (part, on) => {
+      part.g.visible = on;
+      this.colliders = this.colliders.filter((k) => !part.cols.includes(k));
+      if (on) this.colliders.push(...part.cols);
+    };
+    this.westBreach = { open: null, setOpen: (open) => { if (this.westBreach.open === open) return; this.westBreach.open = open; show(whole, !open); show(broken, open); } };
+    this.westBreach.setOpen(true);
   }
 
   /** A stretch of the plaza wall fallen outward: broken stubs either side, the courses spilled down the slope. */

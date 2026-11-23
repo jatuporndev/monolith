@@ -114,7 +114,7 @@ export class Game {
   get wardenInfo() { return WARDENS.find((w) => w.chapter === this.chapter) || null; }
   /** Every warden not being fought still breathes (or lies where it fell). */
   updateIdleBosses(dt, t, except) {
-    for (const b of Object.values(this.bosses)) if (b !== except) b.update(dt, t, this.player, false);
+    for (const b of Object.values(this.bosses)) if (b !== except && !b.offstage) b.update(dt, t, this.player, false);
   }
 
   // ---------------------------------------------------------------- events
@@ -231,8 +231,7 @@ export class Game {
     this.player.spawn(new THREE.Vector3(1.4, this.world.causeway.deckTop, 101), Math.PI * 0.95);
     this.player.root.visible = true;
     this.player.sleepTarget = null;
-    for (const b of Object.values(this.bosses)) b.reset('dormant');
-    for (const w of WARDENS) this.effigies.setState(w.id, 'standing');
+    this.setWorldForChapter(0);
     this.cam.setCinematic(MENU_VIEW.pos, MENU_VIEW.look, 1, true);
     this.world.followSun(new THREE.Vector3(0, 0, 80));
   }
@@ -609,11 +608,18 @@ export class Game {
   // ---------------------------------------------------------------- wardens across chapters
   /** Which wardens still stand, which effigies are rubble, where the motes lead — all from the chapter. */
   setWorldForChapter(id) {
+    // one warden at a time: only the first still standing is in the world; the rest wait unseen
+    const waiting = WARDENS.find((w) => w.chapter >= id);
     for (const w of WARDENS) {
       const boss = this.bosses[w.id];
       if (w.chapter < id) boss.setDefeated(); else boss.reset('dormant');
       this.effigies.setState(w.id, w.chapter < id ? 'fallen' : 'standing');
+      const hidden = w.chapter >= id && w !== waiting;
+      boss.offstage = hidden; boss.root.visible = !hidden;
+      this.effigies.setHidden(w.id, hidden);
     }
+    // the way west to the meadow is walled up until the first warden has fallen
+    this.world.westBreach?.setOpen(WARDENS[0].chapter < id);
     // the most recently fallen effigy points the way to the warden still waiting
     const next = WARDENS.find((w) => w.chapter === id), prev = WARDENS.filter((w) => w.chapter < id).pop();
     if (next && prev) this.effigies.setMotes(this.effigies.get(prev.id), true, this.bosses[next.id].home.clone().setY(this.world.heightAt(this.bosses[next.id].home.x, this.bosses[next.id].home.z)));

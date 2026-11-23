@@ -25,8 +25,9 @@ export class Effigies {
     plinth.position.set(spec.x, y + ph / 2 - 0.1, spec.z); plinth.rotation.y = spec.yaw;
     plinth.castShadow = plinth.receiveShadow = true; w.scene.add(plinth);
     w.addCollider(plinth.position, new THREE.Vector3(pw / 2, ph / 2, pd / 2), spec.yaw);
+    const plinthCol = w.colliders[w.colliders.length - 1];
     const top = y + ph - 0.1;
-    const e = { ...spec, top, plinth, statue: null, pieces: [], state: 'standing', motes: null, moteK: 0 };
+    const e = { ...spec, top, plinth, plinthCol, statue: null, pieces: [], state: 'standing', motes: null, moteK: 0, hidden: false };
     e.statue = this.carve(spec.boss.root, spec.scale);
     e.statue.position.set(spec.x, top, spec.z); e.statue.rotation.y = spec.yaw;
     w.scene.add(e.statue);
@@ -66,6 +67,18 @@ export class Effigies {
   }
 
   get(id) { return this.list.find((e) => e.id === id); }
+
+  /** A warden not yet met has no likeness on the plaza: statue, plinth and its footprint all gone. */
+  setHidden(id, hidden) {
+    const e = this.get(id); if (!e || e.hidden === hidden) return;
+    e.hidden = hidden;
+    e.plinth.visible = !hidden; e.statue.visible = !hidden;
+    for (const p of e.pieces) p.m.visible = !hidden;          // rubble lives in the scene, not under the statue
+    const cols = this.world.colliders;
+    if (hidden) this.world.colliders = cols.filter((k) => k !== e.plinthCol);
+    else if (!cols.includes(e.plinthCol)) cols.push(e.plinthCol);
+    if (hidden) this.setMotes(e, false);
+  }
 
   /** Rebuild whole (standing) or lay it out as rubble at once (fallen). */
   setState(id, state) {
