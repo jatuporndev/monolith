@@ -214,3 +214,12 @@ Verification (2026-11-21, Chrome, scripted input): build OK, tests 10/10. Viewed
 - [x] Warden way in (was: walk up and grab the shin): the shin coat only holds on a foot **stamped and stuck** — after a stamp the foot stays driven in for 3.2 s while it heaves, then wrenches free. Stay close to bait a stamp, jump the shockwave, grab the back of that leg. Echo hints after 35/80 s; "mounted" ends them. Same for every remount.
 - [x] Strider: twice while it drinks it lifts its head and looks back over one shoulder (snort + twitch 0.9 s first). Moving in that arc is seen; standing still further than 6 m, or a stone between, is not. Echo: "Be still, or keep a stone between you."
 - Fair playtests (input-only bots, both updated to see only the leg pose / lifted head): Warden won, 0 deaths, ~3¼ min, 4 mount attempts. Strider won, 0 deaths, ~4¼ min, froze once during a glance. Collapse shot, aftermath and Rest → interlude → chapter IV checked. Build OK, tests 10/10.
+
+## 23. Walking on the giant (2026-11-23)
+- [x] Broad tops (shelf, shoulders, crown) are walked upright without grip: 2.7 m/s, sprint 3.9; no stamina drain on foot
+- [x] A shake (or a top tipping steep) while on foot: the climber staggers and slides ("Hold on" prompt); grip holds, sliding off the rim drops them
+- [x] Walking into a wall of coat from a top stops the feet; with grip held the climber goes up onto it
+- [x] Warden: one unbroken shelf across the back (runs in under the foot of the back, so a failed grip there lands on it); the climb comes up the overhanging belly of the fold (middle and both sides) to its lip
+- [x] Warden: crown widened to 4.6 × 4.9 m
+- [x] Fair runs: Warden won 0 deaths ~2 min; Strider won 0 deaths ~7 min
+- [x] Warden shin coat grabbable any time it is in reach; a walking leg swings the climber (patch `sway`, treated as shaking). The stamp-stuck foot is the calm moment, no longer the only one. Hints reworded (EN + TH)

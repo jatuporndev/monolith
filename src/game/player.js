@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { clamp, damp, lerp } from '../core/util.js';
 import { Health } from './health.js';
-import { closestClimbable, attachmentWorld, bestClimbStep } from './climb.js';
+import { closestClimbable, closestOnBox, attachmentWorld, bestClimbStep } from './climb.js';
 import { buildCharacter } from './character/build.js';
 import { Animator } from './character/animator.js';
 
@@ -14,7 +14,7 @@ export const STRIKE = { windup: 0.24, chargeTime: 1.0, thrust: 0.075, embed: 0.3
 export const PLAYER_TUNING = {
   walk: 4.4, sprint: 7.6, accel: 10, airControl: 2.2, gravity: 22, jump: 7.4,
   radius: 0.36, height: 1.75,
-  climbSpeed: 1.45, reach: 1.15,
+  climbSpeed: 1.45, reach: 1.15, topWalk: 2.7, topRun: 3.9,
   staminaMax: 100, drainHang: 2.2, drainMove: 2.75, drainShakeMult: 3.2, lungeCost: 14,
   leapCharge: 0.5, leapMin: 3.3, leapMax: 6.4, leapChargeDrain: 5,
   regenGround: 30, regenRest: 6, airReach: 1.5,
@@ -342,22 +342,41 @@ export class Player {
     this.bus.emit('player:grip', { colossus: !near.obj.userData.climb.static });
   }
 
+  /** A steep face of coat (another patch) rising just ahead of a climber who is on a top, moving into it. */
+  wallAhead(climbables, cand, N, dir) {
+    const probe = tmpA.copy(cand).addScaledVector(N, 0.6), hit = this._wallHit || (this._wallHit = {});
+    let best = null;
+    for (const obj of climbables) {
+      if (obj === this.att.obj || !obj.visible || !obj.userData.climb || obj.userData.climb.disabled || obj.userData.climb.static) continue;
+      closestOnBox(obj, probe, hit);
+      if (hit.dist > 0.45 || Math.abs(hit.normal.y) > 0.7 || dir.dot(hit.normal) > -0.3) continue;
+      if (!best || hit.dist < best.dist) best = { obj, local: hit.local.clone(), normalLocal: hit.normalLocal.clone(), world: hit.world.clone(), normal: hit.normal.clone(), dist: hit.dist };
+    }
+    return best;
+  }
+
   updateClimb(dt, input, mv, camYaw, climbables, colossus, gripHeld, moveFactor) {
     const t = this.t;
     const alive = !!(this.att && this.att.obj.parent && !this.att.obj.userData.climb.disabled);
     const P = new THREE.Vector3(), N = new THREE.Vector3();
     if (alive) attachmentWorld(this.att, P, N);
     const isStatic = alive && !!this.att.obj.userData.climb.static;
-    const shaking = alive && colossus && !isStatic ? colossus.shakeIntensity : 0;
-    // on the broad top of the giant (shoulders, crown) the climber can let go and stay crouched there;
-    // only a shake demands a grip again. Stepping past the rim is how one drops off on purpose.
-    const standing = alive && !gripHeld && !isStatic && N.y > 0.7 && shaking < 0.3;
-    if ((!gripHeld && !standing) || this.stamina <= 0 || !alive) {
-      if (this.stamina <= 0) this.bus.emit('player:gripLost');
+    // the whole giant thrashing, or just the limb in hand swinging under the climber (a walking leg)
+    const shaking = alive && colossus && !isStatic ? Math.max(colossus.shakeIntensity, this.att.obj.userData.climb.sway || 0) : 0;
+    // on the broad top of the giant (shoulders, crown, the shelf over the hips) the climber can let go and walk
+    // about on their feet. When it thrashes, or the surface tips steep under them, the feet go: they stagger and
+    // slide toward the edge, and only a grip on the coat holds them. They fall only if they slide off the rim.
+    const grip = gripHeld && this.stamina > 0;
+    const topFace = alive && !isStatic && this.att.normalLocal.y > 0.7;
+    const steady = N.y > 0.7 && shaking < 0.3;
+    const standing = topFace && !grip && steady;
+    const teeter = topFace && !grip && !steady && N.y > 0.3;
+    if (!alive || (!grip && !standing && !teeter)) {
+      if (gripHeld && this.stamina <= 0) this.bus.emit('player:gripLost');
       this.release();
       return;
     }
-    this.shakeAmt = shaking; this.climbMoving = false; this.handsFree = standing;
+    this.shakeAmt = shaking; this.climbMoving = false; this.handsFree = standing; this.teeter = teeter;
     // tangent frame
     let up, right;
     if (Math.abs(N.y) < 0.7) {
@@ -370,8 +389,27 @@ export class Player {
     }
     // holding a ridden warden by the horns: sideways input turns the beast instead of moving the climber
     if (colossus?.reins && Math.abs(mv.x) > 0.1 && colossus.reins(this.att, mv)) mv = new THREE.Vector2(0, Math.abs(mv.y) > 0.5 ? mv.y : 0);
-    let moving = Math.hypot(mv.x, mv.y) > 0.1;
+    const stick = Math.hypot(mv.x, mv.y) > 0.1;
+    let moving = stick;
     let step = t.climbSpeed * moveFactor * (shaking > 0.3 ? 0.25 : 1) * dt;
+    // on foot on its top: walk upright (or stagger) instead of crawling
+    let footVel = null;
+    if (topFace && !grip) {
+      footVel = new THREE.Vector3();
+      const spd = (input.held('sprint') ? t.topRun : t.topWalk) * moveFactor * (teeter ? 0.3 : 1);
+      if (stick) footVel.addScaledVector(right, mv.x).addScaledVector(up, mv.y).normalize().multiplyScalar(spd);
+      if (teeter) {
+        // pitched off balance: thrown about by the heave, and drawn down the slope when it tips
+        this.teeterAng = (this.teeterAng ?? Math.random() * 6.28) + (Math.random() - 0.5) * dt * 6;
+        const jolt = clamp((shaking - 0.2) * 2.4, 0, 1.8);
+        footVel.x += Math.cos(this.teeterAng) * jolt; footVel.z += Math.sin(this.teeterAng) * jolt;
+        const tilt = clamp((0.92 - N.y) * 9, 0, 4), hz = Math.hypot(N.x, N.z) || 1;   // N leans the way it slopes down
+        footVel.x += (N.x / hz) * tilt; footVel.z += (N.z / hz) * tilt;
+      }
+      footVel.addScaledVector(N, -footVel.dot(N));
+      moving = footVel.lengthSq() > 0.0025;
+      step = footVel.length() * dt;
+    }
     // leap: hold Jump to coil against the surface, release to spring along it.
     // The longer the hold, the further the leap; past the edge of a hold the body really leaves the surface.
     const lp = this.leap; let leaping = false;
@@ -391,14 +429,25 @@ export class Player {
     }
     if (lp.phase === 'fly') { leaping = true; moving = true; lp.t += dt; step = lp.v * dt; }
     if (moving) {
-      const dir = leaping ? lp.dir.clone() : new THREE.Vector3().addScaledVector(right, mv.x).addScaledVector(up, mv.y).normalize();
-      let blocked = false; const P0 = P.clone();
+      const dir = leaping ? lp.dir.clone() : footVel ? footVel.clone().normalize() : new THREE.Vector3().addScaledVector(right, mv.x).addScaledVector(up, mv.y).normalize();
+      let blocked = false, walled = false; const P0 = P.clone();
       // sub-step so lunges and fast moves still follow the surface around edges
       const steps = Math.max(1, Math.ceil(step / 0.15));
       for (let i = 0; i < steps; i++) {
         attachmentWorld(this.att, P, N);
         const cand = P.clone().addScaledVector(dir, step / steps);
-        const best = bestClimbStep(climbables, cand, P, dir, 0.75);
+        let best = bestClimbStep(climbables, cand, P, dir, 0.75);
+        // on a top, a wall of coat rising from it (the back over the shelf, the back of the head): with a grip
+        // the climber reaches up onto it; on foot they stop against it instead of walking through
+        if (!leaping && this.att.normalLocal.y > 0.7) {
+          const wall = this.wallAhead(climbables, cand, N, dir);
+          if (wall) { if (grip) best = wall; else { blocked = true; walled = true; break; } }
+        }
+        // on foot the feet only cross onto another top; steep coat is only taken by the hands
+        if (footVel && best && best.obj !== this.att.obj && best.normal.y < 0.7) {
+          const own = closestOnBox(this.att.obj, cand, {});
+          best = own.dist < 0.75 ? { obj: own.obj, local: own.local, normalLocal: own.normalLocal, world: own.world, normal: own.normal, dist: own.dist } : null;
+        }
         if (!best) { blocked = true; break; }
         // mantle onto the top of static walls when pushing up past their top edge
         const sc = this.att.obj.userData.climb;
@@ -411,15 +460,18 @@ export class Player {
         // re-project the direction onto the new face
         dir.addScaledVector(best.normal, -dir.dot(best.normal)).normalize();
       }
-      if (standing && !leaping) { // hands free on top: walking past the rim steps off it
+      if (footVel && !leaping && !walled) { // on foot on top: walking (or sliding) past the rim goes over it
         attachmentWorld(this.att, P, N);
         // only at the true rim: a hole in the coat (around a sigil) stops the feet, it is not an edge to fall from
         const h = this.att.obj.userData.climb.half, l = this.att.local;
         const atRim = Math.abs(l.x) > h.x - 0.3 || Math.abs(l.z) > h.z - 0.3;
-        if (atRim && (blocked || P.distanceTo(P0) < step * 0.35)) { this.release(false, true); this.vel.addScaledVector(dir, 1.5); this.vel.y = Math.min(this.vel.y, 1.2); this.gripCooldown = 0.3; return; }
+        if (atRim && (blocked || P.distanceTo(P0) < step * 0.35)) {
+          this.release(teeter, true); this.vel.addScaledVector(dir, teeter ? 0.6 : 1.5); if (!teeter) this.vel.y = Math.min(this.vel.y, 1.2);
+          this.gripCooldown = teeter ? 0.12 : 0.3; return;
+        }
       }
       this.climbMoving = true; (this.climbDir || (this.climbDir = new THREE.Vector3())).copy(dir);
-      this.climbRate = t.climbSpeed * moveFactor * (shaking > 0.3 ? 0.25 : 1);
+      this.climbRate = footVel ? footVel.length() : t.climbSpeed * moveFactor * (shaking > 0.3 ? 0.25 : 1);
       if (leaping) {
         lp.dir.copy(dir);
         attachmentWorld(this.att, P, N);
@@ -453,7 +505,7 @@ export class Player {
     // stamina
     const resting = N.y > 0.7 && !moving && shaking < 0.1;
     if (resting) this.stamina = Math.min(t.staminaMax, this.stamina + t.regenRest * this.health.staminaRegenFactor * dt);
-    else this.stamina -= (t.drainHang + (moving ? t.drainMove : 0)) * (1 + shaking * (t.drainShakeMult - 1)) * dt;
+    else if (!footVel) this.stamina -=(t.drainHang + (moving ? t.drainMove : 0)) * (1 + shaking * (t.drainShakeMult - 1)) * dt;
     this.stamina = clamp(this.stamina, 0, t.staminaMax);
     // holding on through a thrash: effort sounds; once the arms are failing, hands start tearing loose one at a
     // time (heard and seen) before the grip finally goes — the fall never comes without warning
@@ -475,7 +527,7 @@ export class Player {
     const vertical = 1 - clamp(N.y, 0, 1);
     this.pos.copy(P).addScaledVector(N, 0.32 * vertical + 0.02).add(new THREE.Vector3(0, -1.28 * vertical, 0));
     if (vertical > 0.5) this.yaw = Math.atan2(-N.x, -N.z);
-    else if (moving) this.yaw = Math.atan2(up.x * mv.y + right.x * mv.x, up.z * mv.y + right.z * mv.x);
+    else if (moving && stick) this.yaw = Math.atan2(up.x * mv.y + right.x * mv.x, up.z * mv.y + right.z * mv.x);
     this.climbNormal = N.clone();
     this.lastAttWorld = P.clone();
 
@@ -490,6 +542,7 @@ export class Player {
     }
     if (this.strike.phase !== 'none') { this.updateStrike(dt, input, colossus); this.prompt = this.strike.phase === 'charge' ? { action: 'interact', label: 'Strike', hold: true } : null; }
     if (lp.phase === 'charge') this.prompt = null;
+    else if (teeter && this.strike.phase === 'none') this.prompt = { action: 'grip', label: 'Hold on', hold: true };
     else if (!this.prompt && this.strike.phase === 'none' && !standing) this.prompt = { action: 'grip', label: 'Release', hold: true };
   }
 

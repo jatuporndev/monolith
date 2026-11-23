@@ -74,7 +74,9 @@ export class Colossus {
     // ---- skeleton + coat. The body itself is sculpted below as one skinned surface over these joints.
     this.hips = new THREE.Group(); this.hips.position.y = 11.2; root.add(this.hips);
     // fur faces step back gradually from shin → thigh → hips → back so the climb is continuous
-    furPatch(2.6, 3.9, 1.0, this.hips, 0, 0.15, -2.6);                 // the climb runs up the middle, through the gap in the fold
+    // the climb runs up the middle, under the belly of the fold: the coat leans out overhead and carries the
+    // climber to the shelf's lip
+    furPatch(2.6, 3.44, 1.0, this.hips, 0, -0.03, -3.4, -0.451);
     this.legs = [-1, 1].map((side) => {
       const hip = new THREE.Group(); hip.position.set(side * 2.5, -0.8, 0); this.hips.add(hip);
       furPatch(2.3, 5.4, 1.3, hip, 0, -3.0, -1.95);
@@ -95,7 +97,8 @@ export class Colossus {
       return { sh, el, side };
     });
     this.head = new THREE.Group(); this.head.position.set(0, 9.6, 1.6); this.torso.add(this.head);
-    this.crownFur = furPatch(3.8, 0.6, 4.2, this.head, 0, 3.85, 0.2, 0, [{ x: 0, y: 0, r: 1.25 }]);
+    // a broad mat of coat over the skull: room to walk about on its head
+    this.crownFur = furPatch(4.6, 0.6, 4.9, this.head, 0, 3.85, 0.05, 0, [{ x: 0, y: 0.15, r: 1.25 }]);
     this.headBackFur = furPatch(4.6, 3.2, 0.5, this.head, 0, 1.9, -2.05);
     this.jaw = new THREE.Group(); this.jaw.position.set(0, 0.75, 0.2); this.head.add(this.jaw);
     // a shelf of matted fur along the top of the hips, under the back: the one place to stand and get your
@@ -103,14 +106,14 @@ export class Colossus {
     // it juts out from the foot of the back fur, so stepping inward from it lands on the back
     // where the hunched back bends, the old hide has folded into a thick roll across it — mossed over on top,
     // broad enough to stand on. Its top is level with the foot of the back fur.
-    // It is parted down the spine, so the way up runs between its two halves; step sideways onto either to rest.
-    this.beltFolds = [-1, 1].map((sd) => {
-      const b = furPatch(2.5, 1.3, 1.5, this.hips, sd * 2.6, 0.9, -3.85);
-      return b;
-    });
-    this.beltFur = this.beltFolds[0];
+    // One unbroken shelf from flank to flank: the climb up the middle comes over its lip.
+    // It runs in under the foot of the back, so a rider whose grip fails anywhere on the back lands on it.
+    this.beltFur = furPatch(7.8, 1.3, 2.2, this.hips, 0, 0.9, -3.5);
+    this.beltFolds = [this.beltFur];
     // the coat over the haunches, below the fold: carries a climber across from the thighs to the gap
     for (const sd of [-1, 1]) furPatch(2.1, 1.2, 0.5, this.hips, sd * 2.35, -1.2, -2.85);
+    // above them the coat leans out under the belly of the fold, up to the shelf's lip (the climb from either thigh)
+    for (const sd of [-1, 1]) furPatch(2.1, 2.42, 0.5, this.hips, sd * 2.35, 0.505, -3.654, -0.669);
 
     this.sculptBody(veins);
     const eyeMat = this.eyeMat = new THREE.MeshBasicMaterial({ color: 0xffc878, transparent: true, opacity: 0.85 });
@@ -176,6 +179,7 @@ export class Colossus {
         S.ell(H, [sd * x, 1.0 + dy, -3.75 + dz], r, { tag: HIDE, k: 0.95, rough: 0.8 });
       S.ell(H, [sd * 2.6, 0.55, -3.0], [1.4, 0.9, 0.9], { tag: HIDE, k: 0.9, rough: 0.7 });   // the fold grows out of the haunch, not stuck on it
     }
+    S.ell(H, [0, 1.0, -3.75], [1.6, 0.5, 0.95], { tag: HIDE, k: 0.95, rough: 0.8 });          // unbroken across the spine
     for (const m of this.climbables) {
       if (this.beltFolds.includes(m)) { m.material = UNSEEN; m.castShadow = false; continue; }
       const h = m.userData.climb.half;
@@ -456,12 +460,15 @@ export class Colossus {
       if (wp.sealed && climbing && !this.sealedSaid && near > 0.85) { this.sealedSaid = true; this.bus.emit('warden:sealed'); }
     }
 
-    // the way on: a shin can be taken only while its foot is planted after a stamp (or by whoever already holds it)
+    // the way on: the shin coat can be taken any time it is in reach, but a swinging leg flings whoever hangs on it
+    // (slow to climb, the arms burn, hands tear loose when tired). A foot stamped and stuck is the still moment.
     if (this.state !== 'dead' && !this.loosened) {
       for (const leg of this.legs) {
         leg.planted = Math.max(0, leg.planted - dt);
-        const holding = climbing && pl.att?.obj === leg.shin;
-        leg.shin.userData.climb.disabled = !(holding || leg.planted > 0);
+        leg.shin.getWorldPosition(tmp);
+        const c = leg.shin.userData.climb, prev = leg.shinPrev || (leg.shinPrev = tmp.clone());
+        const v = dt > 0 ? tmp.distanceTo(prev) / dt : 0; prev.copy(tmp);
+        c.sway = leg.planted > 0 ? 0 : damp(c.sway || 0, clamp((v - 0.4) / 2.2, 0, 0.85), 6, dt);
       }
     }
     if (climbing && !this.mountSaid) { this.mountSaid = true; this.bus.emit('warden:mounted'); }

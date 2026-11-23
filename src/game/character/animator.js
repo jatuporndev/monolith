@@ -592,8 +592,14 @@ export class Animator {
     if (this.prevSh > 0.55 && sh < 0.4) this.pullIn = 1;
     this.prevSh = sh; this.pullIn = Math.max(0, (this.pullIn || 0) - dt * 1.3);
     // let go on a broad top (shoulders, crown, the shelf over the hips): rise off the hands and stand braced
-    const stand = pl.handsFree && this.kf > 0.8 && !moving && lp.phase === 'none' && pl.strike.phase === 'none' && sh < 0.3;
-    this.upright = damp(this.upright || 0, stand ? 1 : 0, stand ? 3.2 : 8, dt);
+    // and walk about up there on their feet
+    const stand = pl.handsFree && this.kf > 0.8 && lp.phase === 'none' && pl.strike.phase === 'none' && sh < 0.3;
+    this.upright = damp(this.upright || 0, stand ? 1 : 0, stand ? (moving ? 6 : 3.2) : 8, dt);
+    const walking = stand && pl.climbMoving;
+    this.topWalk = damp(this.topWalk || 0, walking ? clamp((pl.climbRate || 0) / 2.7, 0, 1.4) : 0, 9, dt);
+    if (walking) this.topPh = ((this.topPh || 0) + dt * (pl.climbRate || 0) / 1.25) % 1;
+    // thrown off balance (feet sliding, nothing held): arms out wide, the body pitched about
+    this.teeterW = damp(this.teeterW || 0, pl.teeter ? 1 : 0, pl.teeter ? 10 : 5, dt);
   }
 
   poseClimb(pl, p, fading) {
@@ -680,8 +686,36 @@ export class Animator {
         this.mix(p, 'clav' + S, 0, 0, 0, up); this.mix(p, 'upperArm' + S, 0.12, 0, s * (0.22 + sway * s), up); this.mix(p, 'foreArm' + S, -0.35, 0, 0, up);
         this.mix(p, 'thigh' + S, -0.2, 0, s * 0.1, up); this.mix(p, 'shin' + S, 0.32, 0, 0, up); this.mix(p, 'foot' + S, -0.12, 0, 0, up);
       }
+      // walking about on its top: a short, careful stride with the knees kept soft, arms swinging low
+      const wk = (fading ? 0 : this.topWalk || 0) * up;
+      if (wk > 0.001) {
+        const ph = (this.topPh || 0) * Math.PI * 2, s1 = Math.sin(ph), c1 = Math.cos(ph);
+        p.hp[1] += (-0.035 + 0.03 * Math.abs(c1)) * wk;
+        this.add(p, 'hips', 0.05 * wk, s1 * 0.12 * wk, 0); this.add(p, 'spine', 0.04 * wk, -s1 * 0.1 * wk, 0); this.add(p, 'chest', 0, -s1 * 0.08 * wk, 0);
+        for (const s of [1, -1]) {
+          const S = s > 0 ? 'L' : 'R', sw = s1 * s, lift = Math.max(0, -c1 * s);
+          this.add(p, 'thigh' + S, -0.5 * sw * wk - 0.25 * lift * wk, 0, 0);
+          this.add(p, 'shin' + S, 0.75 * lift * wk + 0.1 * wk, 0, 0);
+          this.add(p, 'foot' + S, -0.2 * lift * wk, 0, 0);
+          this.add(p, 'upperArm' + S, 0.35 * sw * wk, 0, 0); this.add(p, 'foreArm' + S, -0.15 * wk, 0, 0);
+        }
+      }
       for (let l = 0; l < 4; l++) p.ikw[l] *= 1 - up;
       p.curl[0] = lerp(p.curl[0], 0.45, up); p.curl[1] = lerp(p.curl[1], 0.45, up);
+    }
+    // off balance on its top with nothing held: crouched low, arms flung out, the body pitched about by the heave
+    const tw = fading ? 0 : this.teeterW || 0;
+    if (tw > 0.001) {
+      const a = Math.sin(t * 5.3), b = Math.sin(t * 3.7 + 1);
+      p.hp[1] = lerp(p.hp[1], -0.2 + 0.03 * a, tw); p.hp[2] = lerp(p.hp[2], 0, tw); p.hp[0] = lerp(p.hp[0], 0.08 * b, tw);
+      this.mix(p, 'hips', 0.35 + 0.1 * a, 0.25 * b, 0.2 * b, tw); this.mix(p, 'spine', 0.2, -0.15 * b, -0.15 * a, tw); this.mix(p, 'chest', 0.1, 0, 0, tw);
+      this.mix(p, 'head', -0.2, 0.3 * b, 0, tw);
+      for (const s of [1, -1]) {
+        const S = s > 0 ? 'L' : 'R';
+        this.mix(p, 'upperArm' + S, -0.6 + 0.4 * a * s, 0, s * (1.0 + 0.3 * b * s), tw); this.mix(p, 'foreArm' + S, -0.4, 0, 0, tw);
+        this.mix(p, 'thigh' + S, -0.9 + 0.2 * a * s, 0, s * 0.25, tw); this.mix(p, 'shin' + S, 1.2, 0, 0, tw); this.mix(p, 'foot' + S, -0.3, 0, 0, tw);
+      }
+      for (let l = 0; l < 4; l++) p.ikw[l] *= 1 - tw;
     }
     // the blow: the right arm leaves the wall
     const spz = fading ? null : pl.strikePose();

@@ -2,12 +2,13 @@
 // Reads only what a player can see (positions, the giant's pose/state, HUD prompt, own stamina bar).
 // Writes only keys (bot.hold/up) and camera yaw (bot.target / g.cam.yaw). Usage: await play(seconds)
 (()=>{const g=__game,c=g.colossus,p=g.player,V=p.pos.constructor; const back=c.weakPoints.find(w=>w.id==='back');
-const NM=['hips','thighL','shinL','thighR','shinR','back','shoulders','armL','armR','crown','headBack','belt','belt','haunchL','haunchR'];
+const NM=['hips','thighL','shinL','thighR','shinR','back','shoulders','armL','armR','crown','headBack','belt','haunchL','haunchR','foldL','foldR'];
 bot.on=()=>p.state==='climb'&&p.att?NM[c.climbables.indexOf(p.att.obj)]:null;
 const shakyNow=()=>c.state==='shakeWarn'||c.state==='shaking'||c.shakeIntensity>0.1;
 const base=bot.ai;
-// the way on (since the shins only hold on a stamped, stuck foot): stand where it will stamp at us, jump the
-// landing, then run to the back of the stuck leg and grab when the prompt shows. Reads only the visible leg pose.
+// the way on (the shins can be grabbed any time, but a walking leg flings you; a stamped, stuck foot is calm):
+// stand where it will stamp at us, jump the landing, then run to the back of the stuck leg and grab when the
+// prompt shows. Reads only the visible leg pose.
 const steer=(x,z)=>{ bot.target=null; g.cam.yaw=Math.atan2(x-p.pos.x,z-p.pos.z)-Math.PI; };
 const mountW=()=>{ const a=bot.a; a.k++; bot.up('KeyE','KeyA','KeyD','KeyS');
   const leg=c.stompLeg||c.legs[0], f=leg.foot.getWorldPosition(new V()), footUp=f.y-g.world.heightAt(f.x,f.z);
@@ -50,7 +51,7 @@ bot.ai=()=>{ const a=bot.a, on=bot.on(), top=on&&p.climbNormal&&p.climbNormal.y>
   }
   a.leaving=0;
   // pushing up under the overhanging fold of hide and getting nowhere: work sideways toward the gap down the spine
-  if(p.state==='climb'&&['thighL','thighR','haunchL','haunchR','hips'].includes(on)&&(a.mode==='up'||a.mode==='mount')&&!shaky){
+  if(p.state==='climb'&&['thighL','thighR','haunchL','haunchR','foldL','foldR','hips'].includes(on)&&(a.mode==='up'||a.mode==='mount')&&!shaky){
     const cur=p.lastAttWorld.clone(); a.cl=a.cl||{p:cur,n:0}; if(cur.distanceTo(a.cl.p)<0.01&&bot.held.has('KeyW')) a.cl.n++; else if(!a.slide) a.cl.n=0; a.cl.p=cur;
     if(a.cl.n>25||a.slide){ a.slide=a.slide||40; a.slide--; a.k++; bot.log();
       const hl=c.hips.worldToLocal(cur.clone()); const N=p.climbNormal.clone(), up=new V(0,1,0).addScaledVector(N,-N.y).normalize(), right=new V().crossVectors(N.clone().negate(),up).normalize();
@@ -60,6 +61,9 @@ bot.ai=()=>{ const a=bot.a, on=bot.on(), top=on&&p.climbNormal&&p.climbNormal.y>
   }
   // resting on the shoulders: once the bar is nearly full and it is not thrashing, head for the open mark
   if(a.mode==='rest'&&on==='shoulders'&&p.stamina>=90&&!shaky){ const wp=c.weakPoints.find(x=>!x.destroyed&&!x.sealed); if(wp){ a.mode=wp.id==='back'?'dropBack':'toHead'; a.fell=false; } }
+  // arms nearly spent on the back (stamina bar low): climb down onto the shelf below and get the breath back there
+  if(on==='back'&&p.stamina<32&&!shaky&&p.strike.phase==='none'&&p.prompt?.label!=='Strike'){ a.k++; bot.log(); bot.target=null; bot.up('KeyW','KeyA','KeyD','Space','ShiftLeft'); bot.hold('Mouse0','KeyS'); if(a.mode!=='down'){a.mode='down'; bot.E('down');} return; }
+  if(a.mode==='down'&&on!=='back'){ bot.up('KeyS'); a.mode='up'; }
   // on the back with the mark intact: work over to it
   if(on==='back'&&!back.destroyed&&(a.mode==='up'||a.mode==='strike')){
     a.k++; bot.log(); bot.hold('Mouse0'); bot.target=null; bot.up('Space','ShiftLeft','KeyW','KeyA','KeyD','KeyS'); if(shaky) return;

@@ -47,7 +47,7 @@ export const WARDENS = [
       awaken: 'It knows you are here.',
       sigil: { crown: 'The back mark is gone, and the crown has woken. Get to its shoulders.', back: 'One mark fades. The back still bears the other.' },
       victory: 'It remembers now. So will you.',
-      hint: ['Its legs will not hold you while they swing. Let it stamp — the foot sticks fast. Take that leg.', 'Stay close until it lifts a foot. Jump as it lands, then grab the back of that leg before it tears free.'],
+      hint: ['A walking leg will fling you about. Let it stamp — the foot sticks fast, and that leg holds still.', 'Stay close until it lifts a foot. Jump as it lands, then climb that leg while it is stuck.'],
       events: {
         mounted: 'It cannot reach you there. Climb.',
         sealed: 'Its crown is sealed. Something else must break first.',
