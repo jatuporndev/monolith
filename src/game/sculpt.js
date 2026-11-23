@@ -97,7 +97,14 @@ export class Sculpt {
     return _v.set(x, y, z).applyMatrix4(_m).clone();
   }
   prep() { this.root.updateMatrixWorld(true); this.rootInv = this.root.matrixWorld.clone().invert(); }
-  add(P) { P.k ??= 0.6; P.tag ??= 0; P.rough ??= 1; this.prims.push(P); return P; }
+  /**
+   * Make the parts fastened to these joints a separate limb: it blends smoothly only with itself (and with
+   * primitives marked `join: <its id>`), and meets the rest of the body with a hard edge. Without this, a limb
+   * hanging close to the body melts into it and the skin stretches into webbing when the limb swings away.
+   * Call before adding primitives. Returns the limb's id.
+   */
+  limb(bones) { this.limbs ??= new Map(); const id = (this.nLimb = (this.nLimb || 0) + 1); for (const b of bones) this.limbs.set(b, id); return id; }
+  add(P) { P.k ??= 0.6; P.tag ??= 0; P.rough ??= 1; P.g ??= this.limbs?.get(P.bone) ?? 0; this.prims.push(P); return P; }
   /** Tapered limb between two bone-local points. */
   cone(bone, a, b, r1, r2 = r1, o = {}) {
     if (!this.rootInv) this.prep();
@@ -133,13 +140,19 @@ export class Sculpt {
     const ix = Math.floor((x - A.o[0]) / A.cs), iy = Math.floor((y - A.o[1]) / A.cs), iz = Math.floor((z - A.o[2]) / A.cs);
     const list = ix < 0 || iy < 0 || iz < 0 || ix >= A.n[0] || iy >= A.n[1] || iz >= A.n[2] ? NONE : A.cells[ix + A.n[0] * (iy + A.n[1] * iz)] || NONE;
     this.near = list;
+    const ng = this.nLimb || 0, dg = this.dg || (this.dg = new Float64Array(ng + 1));
+    if (ng) dg.fill(1e9);
     for (let q = 0; q < list.length; q++) {
       const i = list[q], P = pr[i];
       if (P.sub) continue;
       const di = SD[P.type](x, y, z, P);
       if (ds) ds[i] = di;
-      d = smin(d, di, P.k);
+      if (!ng) { d = smin(d, di, P.k); continue; }
+      dg[P.g] = smin(dg[P.g], di, P.k);
+      if (P.join !== undefined) dg[P.join] = smin(dg[P.join], di, P.k);
     }
+    // limbs meet the body (and each other) with only a narrow fillet
+    if (ng) for (let gi = 0; gi <= ng; gi++) d = smin(d, dg[gi], 0.12);
     if (d > 8) return 8;
     for (let q = 0; q < list.length; q++) {
       const i = list[q], P = pr[i]; if (!P.sub) continue;

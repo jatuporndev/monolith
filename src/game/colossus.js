@@ -170,6 +170,9 @@ export class Colossus {
   sculptBody(veins) {
     const S = new Sculpt(this.root), H = this.hips, T = this.torso, D = this.head, J = this.jaw;
     const HIDE = 0, DARK = 1, MOSS = 2, SOCKET = 3, BONE = 4, PALE = 5, SCAR = 6;
+    // the arms hang close to the flanks: keep them separate limbs so they don't melt into the body and stretch
+    // into webbing when they swing out (only the shoulder ball and the shoulder mass blend across)
+    const armLimb = this.arms.map((a) => S.limb([a.sh, a.el]));
     // the coat grows out of the body: under every patch of fur the flesh swells out to meet the roots of the locks
     // (the patch's own box stays as the unseen climbing surface)
     // the fold of hide: thick in the middle, tapering round toward the flanks, flattened on top by the years
@@ -220,8 +223,8 @@ export class Colossus {
       for (let i = 0; i < 4; i++) S.ell(T, [s * 3.35, 3.0 + i * 0.95, 1.25 - i * 0.12], [0.95, 0.32, 0.75], { tag: HIDE, k: 0.28, rot: [0, 0, s * 0.5] }); // ribs under the hide
       S.ell(T, [s * 3.6, 5.0, -1.0], [1.3, 3.0, 1.6], { tag: HIDE, k: 0.8 });                // flank
       S.cone(T, [s * 0.7, 7.65, 2.3], [s * 4.2, 8.3, 1.9], 0.42, 0.36, { tag: HIDE, k: 0.35 });   // collarbone
-      S.ell(T, [s * 5.4, 8.6, 0.2], [2.5, 1.7, 2.7], { tag: HIDE, k: 0.9 });                 // shoulder
-      S.ell(T, [s * 5.5, 9.8, 0.1], [1.9, 0.5, 2.0], { tag: MOSS, k: 0.5, rough: 1.4 });     // moss mantle
+      S.ell(T, [s * 5.4, 8.6, 0.2], [2.5, 1.7, 2.7], { tag: HIDE, k: 0.9, join: armLimb[s > 0 ? 1 : 0] });   // shoulder
+      S.ell(T, [s * 5.5, 9.8, 0.1], [1.9, 0.5, 2.0], { tag: MOSS, k: 0.5, rough: 1.4, join: armLimb[s > 0 ? 1 : 0] });   // moss mantle
     }
     S.ell(T, [0, 8.2, -0.15], [4.9, 1.25, 2.85], { tag: DARK, k: 1.0 });                     // yoke of muscle under the shoulder coat
     S.cone(T, [0, 8.4, 0.6], [0, 9.6, 1.5], 1.9, 1.6, { tag: DARK, k: 0.8 });                // neck
@@ -234,7 +237,7 @@ export class Colossus {
     // ---- arms: longer and heavier than the legs; hands that could close round a tower
     for (const arm of this.arms) {
       const { sh, el, side } = arm;
-      S.ell(sh, [0, -0.5, 0], [1.65, 1.9, 1.65], { tag: HIDE, k: 0.9 });
+      S.ell(sh, [0, -0.5, 0], [1.65, 1.9, 1.65], { tag: HIDE, k: 0.9, join: 0 });             // shoulder ball: grows out of the body
       S.cone(sh, [0, -0.6, 0], [0, -5.9, 0], 1.3, 1.0, { tag: HIDE, k: 0.6 });
       S.ell(sh, [0, -2.8, 0.6], [1.0, 1.9, 0.95], { tag: HIDE, k: 0.5 });                    // biceps
       S.ell(sh, [0, -3.2, -0.6], [0.95, 2.0, 0.9], { tag: HIDE, k: 0.5 });                   // triceps
