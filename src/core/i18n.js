@@ -206,8 +206,6 @@ export const TH = {
   'Save deleted': 'ลบไฟล์บันทึกแล้ว',
   // ---- loading / credits / hud
   'Loading': 'กำลังโหลด',
-  'Press A to continue': 'กด A เพื่อไปต่อ',
-  'Press any key to continue': 'กดปุ่มใดก็ได้เพื่อไปต่อ',
   'Faster': 'เร่ง',
   'Skip': 'ข้าม',
   'Click to look around': 'คลิกเพื่อมองไปรอบ ๆ',

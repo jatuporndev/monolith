@@ -526,8 +526,7 @@ export class Game {
     if (remaining > 0) await wait(remaining);
     ls.setProgress(1);
     await wait(350);
-    await ls.waitForPlayer();
-    await this.enterPlay(true);
+    await this.enterPlay(true);                     // straight in once loaded (the mouse locks on the first click)
   }
 
   async enterPlay(intro) {

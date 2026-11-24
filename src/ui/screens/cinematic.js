@@ -19,19 +19,10 @@ export class LoadingScreen extends Screen {
     this.name.textContent = chapter.title;
     this.lore.textContent = t(chapter.lore);
     this.setProgress(0);
-    this.status.classList.remove('is-ready'); this.statusText.textContent = t('Loading');
-    this.ready = null;
+    this.statusText.textContent = t('Loading');
     super.enter();
   }
   setProgress(k) { this.bar.style.width = Math.round(k * 100) + '%'; }
-  /** Resolves when the player presses a key (or after a while). */
-  waitForPlayer() {
-    this.status.classList.add('is-ready');
-    this.statusText.textContent = t(this.ui.device === 'pad' ? 'Press A to continue' : 'Press any key to continue');
-    return new Promise((res) => { this.ready = res; this.autoT = setTimeout(() => this.finish(), 12000); this.el.onclick = () => this.finish(); });
-  }
-  finish() { if (!this.ready) return; clearTimeout(this.autoT); const r = this.ready; this.ready = null; this.ui.sfx('uiConfirm'); r(); }
-  onInput(e) { if (this.ready && (e.type === 'any' || e.type === 'confirm' || e.type === 'start')) this.finish(); }
 }
 
 export class CreditsScreen extends Screen {
